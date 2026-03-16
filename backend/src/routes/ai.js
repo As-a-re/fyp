@@ -1,0 +1,477 @@
+const express = require("express");
+const { body, validationResult } = require("express-validator");
+const supabase = require("../config/database");
+const { authenticateToken } = require("../middleware/auth");
+const axios = require("axios");
+const { getLanguageConfig } = require("../config/tavus");
+const {
+  translateEnglishToTwi,
+  translateTwiToEnglish,
+  autoTranslate,
+  detectLanguage,
+} = require("../services/translator");
+
+const router = express.Router();
+
+// Start AI assistant session
+router.post("/start-session", authenticateToken, async (req, res) => {
+  try {
+    const { language = "en" } = req.body;
+
+    // Normalize language code
+    const normalizedLanguage = language.toLowerCase() === "twi" ? "tw" : "en";
+
+    // Check if user has an active session
+    const { data: activeSession } = await supabase
+      .from("ai_sessions")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .eq("session_status", "active")
+      .single();
+
+    if (activeSession) {
+      return res.json({
+        message: "Active session already exists",
+        session: activeSession,
+      });
+    }
+
+    try {
+      // Get language-specific configuration
+      const langConfig = getLanguageConfig(normalizedLanguage);
+
+      // Call Tavus AI API to create session
+      const tavusResponse = await axios.post(
+        `${langConfig.apiUrl}/sessions`,
+        {
+          persona_id: langConfig.persona_id,
+          replica_id: langConfig.replica_id,
+          language: langConfig.language,
+          settings: {
+            enable_video: true,
+            enable_audio: true,
+            max_duration: 1800, // 30 minutes
+            auto_end: true,
+          },
+        },
+        {
+          headers: langConfig.headers,
+          timeout: 15000,
+        },
+      );
+
+      const sessionData = tavusResponse.data;
+
+      // Save session to database
+      const { data: session, error } = await supabase
+        .from("ai_sessions")
+        .insert([
+          {
+            user_id: req.user.id,
+            session_url: sessionData.session_url,
+            session_id: sessionData.session_id,
+            session_status: "active",
+            started_at: new Date().toISOString(),
+            language: normalizedLanguage,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Failed to save AI session:", error);
+        return res.status(500).json({ error: "Failed to save session" });
+      }
+
+      res.status(201).json({
+        message: "AI session started successfully",
+        session: {
+          id: session.id,
+          session_url: session.session_url,
+          session_id: session.session_id,
+          status: session.session_status,
+          started_at: session.started_at,
+          language: session.language,
+        },
+      });
+    } catch (tavusError) {
+      console.error("Tavus API error:", tavusError.message);
+
+      // Create mock session for development
+      const mockSessionUrl = `https://demo.tavus.io/session/${Date.now()}`;
+      const mockSessionId = `mock_session_${Date.now()}`;
+
+      const { data: session, error } = await supabase
+        .from("ai_sessions")
+        .insert([
+          {
+            user_id: req.user.id,
+            session_url: mockSessionUrl,
+            session_id: mockSessionId,
+            session_status: "active",
+            started_at: new Date().toISOString(),
+            language: normalizedLanguage,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        return res.status(500).json({ error: "Failed to create mock session" });
+      }
+
+      res.status(201).json({
+        message: "AI session started (demo mode)",
+        session: {
+          id: session.id,
+          session_url: session.session_url,
+          session_id: session.session_id,
+          status: session.session_status,
+          started_at: session.started_at,
+          language: session.language,
+        },
+        warning: "Using demo session - Tavus API unavailable",
+      });
+    }
+  } catch (error) {
+    console.error("Start session error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// End AI assistant session
+router.post(
+  "/end-session",
+  authenticateToken,
+  [body("session_id").notEmpty().withMessage("Session ID required")],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { session_id } = req.body;
+
+      // Update session status
+      const { data: session, error } = await supabase
+        .from("ai_sessions")
+        .update({
+          session_status: "ended",
+          ended_at: new Date().toISOString(),
+        })
+        .eq("user_id", req.user.id)
+        .eq("session_id", session_id)
+        .eq("session_status", "active")
+        .select()
+        .single();
+
+      if (error || !session) {
+        return res.status(404).json({ error: "Active session not found" });
+      }
+
+      try {
+        // Call Tavus API to end session
+        await axios.delete(
+          `${process.env.TAVUS_API_URL}/sessions/${session_id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.TAVUS_API_KEY}`,
+            },
+            timeout: 10000,
+          },
+        );
+      } catch (tavusError) {
+        console.warn("Failed to end Tavus session:", tavusError.message);
+      }
+
+      res.json({
+        message: "Session ended successfully",
+        session,
+      });
+    } catch (error) {
+      console.error("End session error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Get session history
+router.get("/sessions", authenticateToken, async (req, res) => {
+  try {
+    const { limit = 20, offset = 0 } = req.query;
+
+    const { data: sessions, error } = await supabase
+      .from("ai_sessions")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .order("started_at", { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+
+    if (error) {
+      return res
+        .status(500)
+        .json({ error: "Failed to fetch sessions", details: error.message });
+    }
+
+    res.json({ sessions });
+  } catch (error) {
+    console.error("Sessions history error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get active session
+router.get("/active-session", authenticateToken, async (req, res) => {
+  try {
+    const { data: session, error } = await supabase
+      .from("ai_sessions")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .eq("session_status", "active")
+      .single();
+
+    if (error && error.code !== "PGRST116") {
+      return res.status(500).json({
+        error: "Failed to fetch active session",
+        details: error.message,
+      });
+    }
+
+    res.json({
+      session: session || null,
+    });
+  } catch (error) {
+    console.error("Active session error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Analyze symptom with AI
+router.post(
+  "/analyze-symptom",
+  authenticateToken,
+  [
+    body("symptom_text")
+      .trim()
+      .isLength({ min: 5 })
+      .withMessage("Symptom description must be at least 5 characters"),
+    body("severity_level")
+      .optional()
+      .isIn(["Low", "Medium", "High"])
+      .withMessage("Invalid severity level"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { symptom_text, severity_level = "Medium" } = req.body;
+
+      // Save symptom report
+      const { data: symptom, error } = await supabase
+        .from("symptoms")
+        .insert([
+          {
+            user_id: req.user.id,
+            symptom_text,
+            severity_level,
+            ai_prediction: null, // Will be updated after AI analysis
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        return res.status(500).json({
+          error: "Failed to save symptom report",
+          details: error.message,
+        });
+      }
+
+      try {
+        // Analyze symptom with AI (simplified for demo)
+        const aiAnalysis = await analyzeSymptomWithAI(
+          symptom_text,
+          severity_level,
+        );
+
+        // Update symptom with AI prediction
+        const { data: updatedSymptom } = await supabase
+          .from("symptoms")
+          .update({
+            ai_prediction: aiAnalysis.prediction,
+            ai_confidence: aiAnalysis.confidence,
+            ai_recommendations: aiAnalysis.recommendations,
+          })
+          .eq("id", symptom.id)
+          .select()
+          .single();
+
+        res.status(201).json({
+          message: "Symptom analyzed successfully",
+          symptom: updatedSymptom,
+          analysis: aiAnalysis,
+        });
+      } catch (aiError) {
+        console.error("AI analysis error:", aiError.message);
+
+        // Return symptom without AI analysis
+        res.status(201).json({
+          message: "Symptom recorded (AI analysis unavailable)",
+          symptom,
+          warning: "AI analysis temporarily unavailable",
+        });
+      }
+    } catch (error) {
+      console.error("Symptom analysis error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Helper function for symptom analysis
+async function analyzeSymptomWithAI(symptomText, severityLevel) {
+  // Simplified AI analysis for demo
+  // In production, this would call a more sophisticated AI service
+
+  const keywords = {
+    headache: { risk: "Low", confidence: 0.6 },
+    swelling: { risk: "Medium", confidence: 0.7 },
+    pain: { risk: "Medium", confidence: 0.6 },
+    dizziness: { risk: "Medium", confidence: 0.7 },
+    bleeding: { risk: "High", confidence: 0.9 },
+    fever: { risk: "Medium", confidence: 0.8 },
+    nausea: { risk: "Low", confidence: 0.5 },
+  };
+
+  let analysis = { risk: "Low", confidence: 0.5 };
+
+  for (const [keyword, result] of Object.entries(keywords)) {
+    if (symptomText.toLowerCase().includes(keyword)) {
+      analysis = result;
+      break;
+    }
+  }
+
+  // Adjust based on severity level
+  if (severityLevel === "High") {
+    analysis.confidence = Math.min(analysis.confidence + 0.2, 1.0);
+    if (analysis.risk === "Low") analysis.risk = "Medium";
+    if (analysis.risk === "Medium") analysis.risk = "High";
+  }
+
+  const recommendations = {
+    Low: ["Monitor symptoms", "Rest and hydrate", "Contact if symptoms worsen"],
+    Medium: [
+      "Monitor closely",
+      "Schedule doctor appointment",
+      "Rest and avoid stress",
+    ],
+    High: [
+      "Seek immediate medical attention",
+      "Contact emergency services",
+      "Do not wait",
+    ],
+  };
+
+  return {
+    prediction: analysis.risk,
+    confidence: analysis.confidence,
+    recommendations: recommendations[analysis.risk],
+  };
+}
+
+// Translate text endpoint
+router.post(
+  "/translate",
+  authenticateToken,
+  [
+    body("text")
+      .trim()
+      .isLength({ min: 1 })
+      .withMessage("Text is required for translation"),
+    body("target_language")
+      .isIn(["en", "tw"])
+      .withMessage("Target language must be 'en' or 'tw'"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { text, target_language } = req.body;
+
+      try {
+        const translatedText = await autoTranslate(text, target_language);
+
+        res.json({
+          message: "Translation successful",
+          original_text: text,
+          translated_text: translatedText,
+          target_language,
+        });
+      } catch (translationError) {
+        console.error("Translation error:", translationError.message);
+
+        res.status(500).json({
+          error: "Translation failed",
+          message: "Unable to translate text at this time",
+        });
+      }
+    } catch (error) {
+      console.error("Translate endpoint error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+// Detect language endpoint
+router.post(
+  "/detect-language",
+  authenticateToken,
+  [
+    body("text")
+      .trim()
+      .isLength({ min: 1 })
+      .withMessage("Text is required for language detection"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { text } = req.body;
+
+      try {
+        const detectedLanguage = await detectLanguage(text);
+
+        res.json({
+          message: "Language detection successful",
+          text,
+          detected_language: detectedLanguage,
+          language_name: detectedLanguage === "tw" ? "Twi" : "English",
+        });
+      } catch (detectionError) {
+        console.error("Language detection error:", detectionError.message);
+
+        res.status(500).json({
+          error: "Language detection failed",
+          message: "Unable to detect language at this time",
+        });
+      }
+    } catch (error) {
+      console.error("Detect language endpoint error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  },
+);
+
+module.exports = router;

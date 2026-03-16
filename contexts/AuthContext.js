@@ -1,0 +1,129 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createContext, useContext, useEffect, useState } from "react";
+import { authAPI } from "../services/api";
+
+const AuthContext = createContext();
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Check for existing session on app start
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      if (token) {
+        // Validate token by getting user profile
+        const response = await authAPI.getProfile();
+        if (response.user) {
+          setUser(response.user);
+          setIsAuthenticated(true);
+        } else {
+          // Token invalid, clear it
+          await AsyncStorage.removeItem("authToken");
+        }
+      }
+    } catch (error) {
+      console.error("Auth check failed:", error);
+      await AsyncStorage.removeItem("authToken");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (email, password) => {
+    try {
+      setLoading(true);
+      const response = await authAPI.login({ email, password });
+
+      if (response.token && response.user) {
+        await AsyncStorage.setItem("authToken", response.token);
+        setUser(response.user);
+        setIsAuthenticated(true);
+        return { success: true, user: response.user };
+      }
+
+      return { success: false, error: "Login failed" };
+    } catch (error) {
+      console.error("Login error:", error);
+      return {
+        success: false,
+        error: error.message || "Login failed. Please try again.",
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      setLoading(true);
+      const response = await authAPI.register(userData);
+
+      if (response.token && response.user) {
+        await AsyncStorage.setItem("authToken", response.token);
+        setUser(response.user);
+        setIsAuthenticated(true);
+        return { success: true, user: response.user };
+      }
+
+      return { success: false, error: "Registration failed" };
+    } catch (error) {
+      console.error("Registration error:", error);
+      return {
+        success: false,
+        error: error.message || "Registration failed. Please try again.",
+      };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await AsyncStorage.removeItem("authToken");
+      setUser(null);
+      setIsAuthenticated(false);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  const updateProfile = async (profileData) => {
+    try {
+      // This would be implemented if there's an update profile endpoint
+      // For now, we'll just update the local state
+      setUser((prev) => ({ ...prev, ...profileData }));
+      return { success: true };
+    } catch (error) {
+      console.error("Profile update error:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const value = {
+    user,
+    loading,
+    isAuthenticated,
+    login,
+    register,
+    logout,
+    updateProfile,
+    checkAuthStatus,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
