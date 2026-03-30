@@ -1,19 +1,21 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Picker,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Colors } from "../constants/theme";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function RegisterScreen() {
@@ -25,7 +27,6 @@ export default function RegisterScreen() {
     confirmPassword: "",
     role: "Mother",
     phone: "",
-    language: "English",
   });
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -43,17 +44,17 @@ export default function RegisterScreen() {
     }
 
     if (name.length < 2) {
-      Alert.alert("Error", "Name must be at least 2 characters long");
+      Alert.alert("Error", "Name must be at least 2 characters");
       return false;
     }
 
     if (!email.includes("@") || !email.includes(".")) {
-      Alert.alert("Error", "Please enter a valid email address");
+      Alert.alert("Error", "Please enter a valid email");
       return false;
     }
 
     if (password.length < 6) {
-      Alert.alert("Error", "Password must be at least 6 characters long");
+      Alert.alert("Error", "Password must be at least 6 characters");
       return false;
     }
 
@@ -78,148 +79,311 @@ export default function RegisterScreen() {
       const { confirmPassword, ...registrationData } = formData;
       const result = await register(registrationData);
 
-      if (!result.success) {
-        Alert.alert("Registration Failed", result.error);
+      if (result.success) {
+        Alert.alert(
+          "Registration Successful",
+          "Your account has been created. Please login with your credentials.",
+          [
+            {
+              text: "Go to Login",
+              onPress: () => router.replace("/login"),
+            },
+          ],
+        );
+      } else {
+        Alert.alert("Registration Failed", result.error || "Unknown error");
       }
     } catch (error) {
-      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+      Alert.alert("Error", error.message || "An unexpected error occurred");
     } finally {
       setLoading(false);
     }
   };
 
+  const colors = Colors.light;
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Header with Logo */}
           <View style={styles.header}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join our prenatal care system</Text>
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={["#2d9d78", "#3eaf8f"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoGradient}
+              >
+                <MaterialCommunityIcons
+                  name="heart"
+                  size={32}
+                  color="#ffffff"
+                />
+              </LinearGradient>
+            </View>
+            <Text style={[styles.appName, { color: colors.foreground }]}>
+              MamaGuard
+            </Text>
+            <Text style={[styles.tagline, { color: colors.muted }]}>
+              Maternal health, reimagined
+            </Text>
           </View>
 
-          <View style={styles.form}>
+          {/* Role Selector */}
+          <View style={styles.roleSection}>
+            <Text style={[styles.roleLabel, { color: colors.foreground }]}>
+              I am a
+            </Text>
+            <View style={styles.roleButtons}>
+              <TouchableOpacity
+                style={[
+                  styles.roleButton,
+                  formData.role === "Mother" && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
+                  formData.role !== "Mother" && {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => handleInputChange("role", "Mother")}
+              >
+                <MaterialCommunityIcons
+                  name="baby"
+                  size={20}
+                  color={
+                    formData.role === "Mother" ? "#ffffff" : colors.foreground
+                  }
+                />
+                <Text
+                  style={[
+                    styles.roleButtonText,
+                    {
+                      color:
+                        formData.role === "Mother"
+                          ? "#ffffff"
+                          : colors.foreground,
+                    },
+                  ]}
+                >
+                  Mother
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.roleButton,
+                  formData.role === "Doctor" && {
+                    backgroundColor: colors.primary,
+                    borderColor: colors.primary,
+                  },
+                  formData.role !== "Doctor" && {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => handleInputChange("role", "Doctor")}
+              >
+                <MaterialCommunityIcons
+                  name="stethoscope"
+                  size={20}
+                  color={
+                    formData.role === "Doctor" ? "#ffffff" : colors.foreground
+                  }
+                />
+                <Text
+                  style={[
+                    styles.roleButtonText,
+                    {
+                      color:
+                        formData.role === "Doctor"
+                          ? "#ffffff"
+                          : colors.foreground,
+                    },
+                  ]}
+                >
+                  Doctor
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Form */}
+          <View style={[styles.form, { backgroundColor: colors.card }]}>
+            {/* Name Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Full Name *</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>
+                Full Name
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.foreground,
+                  },
+                ]}
                 value={formData.name}
                 onChangeText={(value) => handleInputChange("name", value)}
                 placeholder="Enter your full name"
+                placeholderTextColor={colors.muted}
                 autoCapitalize="words"
+                editable={!loading}
               />
             </View>
 
+            {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email Address *</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>
+                Email
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.foreground,
+                  },
+                ]}
                 value={formData.email}
                 onChangeText={(value) => handleInputChange("email", value)}
                 placeholder="Enter your email"
+                placeholderTextColor={colors.muted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={!loading}
               />
             </View>
 
+            {/* Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Password *</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>
+                Password
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.foreground,
+                  },
+                ]}
                 value={formData.password}
                 onChangeText={(value) => handleInputChange("password", value)}
                 placeholder="Enter your password"
+                placeholderTextColor={colors.muted}
                 secureTextEntry
+                editable={!loading}
               />
             </View>
 
+            {/* Confirm Password Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Confirm Password *</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>
+                Confirm Password
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.foreground,
+                  },
+                ]}
                 value={formData.confirmPassword}
                 onChangeText={(value) =>
                   handleInputChange("confirmPassword", value)
                 }
                 placeholder="Confirm your password"
+                placeholderTextColor={colors.muted}
                 secureTextEntry
+                editable={!loading}
               />
             </View>
 
+            {/* Phone Input */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Role *</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.role}
-                  onValueChange={(value) => handleInputChange("role", value)}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Mother" value="Mother" />
-                  <Picker.Item label="Doctor" value="Doctor" />
-                  <Picker.Item label="Administrator" value="Administrator" />
-                </Picker>
-              </View>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Phone Number</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>
+                Phone Number (Optional)
+              </Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                    color: colors.foreground,
+                  },
+                ]}
                 value={formData.phone}
                 onChangeText={(value) => handleInputChange("phone", value)}
                 placeholder="Enter your phone number"
+                placeholderTextColor={colors.muted}
                 keyboardType="phone-pad"
+                editable={!loading}
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Preferred Language</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={formData.language}
-                  onValueChange={(value) =>
-                    handleInputChange("language", value)
-                  }
-                  style={styles.picker}
-                >
-                  <Picker.Item label="English" value="English" />
-                  <Picker.Item label="Twi" value="Twi" />
-                  <Picker.Item label="Spanish" value="Spanish" />
-                  <Picker.Item label="French" value="French" />
-                </Picker>
-              </View>
-            </View>
-
+            {/* Register Button */}
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[
+                styles.registerButton,
+                loading && styles.registerButtonDisabled,
+              ]}
               onPress={handleRegister}
               disabled={loading}
+              activeOpacity={0.85}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color="#ffffff" size="small" />
               ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
+                <Text style={styles.registerButtonText}>Sign Up</Text>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.linkButton}
-              onPress={() => router.push("/login")}
-            >
-              <Text style={styles.linkText}>
+            {/* Login Link */}
+            <View style={styles.loginContainer}>
+              <Text style={[styles.loginText, { color: colors.foreground }]}>
                 Already have an account?{" "}
-                <Text style={styles.linkTextBold}>Login</Text>
               </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/login")}
+                disabled={loading}
+              >
+                <Text
+                  style={[
+                    styles.loginLink,
+                    {
+                      color: colors.primary,
+                    },
+                  ]}
+                >
+                  Log In
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              By registering, you agree to our terms of service and privacy
-              policy
+          {/* Terms Text */}
+          <View style={styles.termsContainer}>
+            <Text style={[styles.termsText, { color: colors.muted }]}>
+              By signing up, you agree to our Terms of Service and Privacy
+              Policy
             </Text>
           </View>
         </ScrollView>
@@ -231,101 +395,126 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
-    paddingTop: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 30,
   },
   header: {
     alignItems: "center",
-    marginBottom: 30,
+    marginBottom: 28,
   },
-  title: {
+  logoContainer: {
+    marginBottom: 16,
+  },
+  logoGradient: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  appName: {
     fontSize: 28,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 8,
+    fontWeight: "700",
+    marginBottom: 4,
+    letterSpacing: -0.3,
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#7f8c8d",
-    textAlign: "center",
+  tagline: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  roleSection: {
+    marginBottom: 24,
+  },
+  roleLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  roleButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  roleButton: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 6,
   },
   form: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: 16,
+    padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 3,
+    marginBottom: 16,
   },
   inputContainer: {
     marginBottom: 16,
   },
   label: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
-    color: "#2c3e50",
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#e1e8ed",
     borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#f8f9fa",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    fontSize: 14,
   },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: "#e1e8ed",
+  registerButton: {
+    backgroundColor: "#2d9d78",
     borderRadius: 8,
-    backgroundColor: "#f8f9fa",
-  },
-  picker: {
-    height: 50,
-  },
-  button: {
-    backgroundColor: "#27ae60",
-    borderRadius: 8,
-    padding: 16,
+    paddingVertical: 14,
     alignItems: "center",
+    marginTop: 18,
+    marginBottom: 14,
+  },
+  registerButtonDisabled: {
+    backgroundColor: "#cbd5e1",
+  },
+  registerButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  loginContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loginText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  loginLink: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  termsContainer: {
+    alignItems: "center",
+    paddingHorizontal: 10,
     marginTop: 10,
   },
-  buttonDisabled: {
-    backgroundColor: "#bdc3c7",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  linkButton: {
-    marginTop: 20,
-    alignItems: "center",
-  },
-  linkText: {
-    fontSize: 14,
-    color: "#7f8c8d",
-  },
-  linkTextBold: {
-    color: "#3498db",
-    fontWeight: "600",
-  },
-  footer: {
-    marginTop: 30,
-    alignItems: "center",
-  },
-  footerText: {
-    fontSize: 12,
-    color: "#95a5a6",
+  termsText: {
+    fontSize: 11,
     textAlign: "center",
+    lineHeight: 16,
   },
 });

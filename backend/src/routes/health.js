@@ -69,12 +69,10 @@ router.post(
         .single();
 
       if (error) {
-        return res
-          .status(500)
-          .json({
-            error: "Failed to record health data",
-            details: error.message,
-          });
+        return res.status(500).json({
+          error: "Failed to record health data",
+          details: error.message,
+        });
       }
 
       res.status(201).json({
@@ -101,12 +99,10 @@ router.get("/history", authenticateToken, async (req, res) => {
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
 
     if (error) {
-      return res
-        .status(500)
-        .json({
-          error: "Failed to fetch health history",
-          details: error.message,
-        });
+      return res.status(500).json({
+        error: "Failed to fetch health history",
+        details: error.message,
+      });
     }
 
     // Get total count
@@ -130,7 +126,7 @@ router.get("/history", authenticateToken, async (req, res) => {
   }
 });
 
-// Get latest health record
+// Get latest health record with pregnancy profile
 router.get("/latest", authenticateToken, async (req, res) => {
   try {
     const { data: record, error } = await supabase
@@ -143,16 +139,35 @@ router.get("/latest", authenticateToken, async (req, res) => {
 
     if (error && error.code !== "PGRST116") {
       // PGRST116 is "not found"
-      return res
-        .status(500)
-        .json({
-          error: "Failed to fetch latest health record",
-          details: error.message,
-        });
+      return res.status(500).json({
+        error: "Failed to fetch latest health record",
+        details: error.message,
+      });
     }
 
+    // Get pregnancy profile
+    const { data: pregnancyProfile, error: pregError } = await supabase
+      .from("pregnancy_profiles")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .single();
+
+    if (pregError && pregError.code !== "PGRST116") {
+      console.warn("Pregnancy profile not found:", pregError.message);
+    }
+
+    // Combine health record with pregnancy profile data
+    const combinedData = record
+      ? {
+          ...record,
+          gestational_age: pregnancyProfile?.gestational_age || null,
+          due_date: pregnancyProfile?.due_date || null,
+          risk_level: pregnancyProfile?.risk_level || null,
+        }
+      : null;
+
     res.json({
-      record: record || null,
+      record: combinedData,
     });
   } catch (error) {
     console.error("Latest health record error:", error);

@@ -1,294 +1,360 @@
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../contexts/AuthContext";
+import { Colors } from "../constants/theme";
+import { userAPI } from "../services/api";
 
-export default function PregnancyProfileScreen({ navigation }) {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [profileData, setProfileData] = useState({
-    due_date: "",
-    last_menstrual_period: "",
-    conception_date: "",
-    first_trimester_screening: "",
-    second_trimester_scan: "",
-    third_trimester_scan: "",
-    blood_type: "",
-    rh_factor: "",
-    allergies: "",
-    medications: "",
-    previous_pregnancies: "",
-    complications: "",
+export default function PregnancyProfileScreen() {
+  const router = useRouter();
+  const colors = Colors.light;
+  const [loading, setLoading] = useState(true);
+  const [pregnancyProfile, setPregnancyProfile] = useState(null);
+  const [expanded, setExpanded] = useState({
+    development: false,
+    checkups: false,
+    milestones: false,
   });
 
   useEffect(() => {
-    loadProfileData();
+    loadPregnancyProfile();
   }, []);
 
-  const loadProfileData = async () => {
-    // This would load from backend API
-    // For now, using placeholder data
-    setLoading(false);
-  };
-
-  const handleInputChange = (field, value) => {
-    setProfileData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const validateForm = () => {
-    if (!profileData.due_date) {
-      Alert.alert("Error", "Please enter your due date");
-      return false;
-    }
-
-    // Validate date format (simple validation)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (profileData.due_date && !dateRegex.test(profileData.due_date)) {
-      Alert.alert("Error", "Please enter date in YYYY-MM-DD format");
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSave = async () => {
-    if (!validateForm()) return;
-
-    setSaving(true);
+  const loadPregnancyProfile = async () => {
     try {
-      // This would save to backend API
-      Alert.alert("Success", "Pregnancy profile updated successfully");
+      setLoading(true);
+      const response = await userAPI.getPregnancyProfile();
+      setPregnancyProfile(response.profile || {});
     } catch (error) {
-      console.error("Profile save error:", error);
-      Alert.alert("Error", "Failed to save pregnancy profile");
+      console.error("Failed to load pregnancy profile:", error);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadProfileData();
+  const toggleExpanded = (section) => {
+    setExpanded((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
   };
 
-  const calculateGestationalAge = () => {
-    if (!profileData.last_menstrual_period) return "Not calculated";
+  const profile = pregnancyProfile || {};
 
-    const lmp = new Date(profileData.last_menstrual_period);
-    const today = new Date();
-    const diffTime = Math.abs(today - lmp);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const weeks = Math.floor(diffDays / 7);
-    const days = diffDays % 7;
+  const milestones = [
+    { week: 8, title: "Heartbeat Detected", completed: true },
+    { week: 12, title: "First Trimester Complete", completed: true },
+    { week: 20, title: "Mid-Pregnancy Scan", completed: true },
+    { week: 28, title: "Third Trimester Begins", completed: false },
+    { week: 40, title: "Due Date", completed: false },
+  ];
 
-    return `${weeks} weeks, ${days} days`;
-  };
-
-  const calculateTrimester = () => {
-    if (!profileData.last_menstrual_period) return "Unknown";
-
-    const lmp = new Date(profileData.last_menstrual_period);
-    const today = new Date();
-    const diffTime = Math.abs(today - lmp);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const weeks = Math.floor(diffDays / 7);
-
-    if (weeks <= 13) return "First Trimester";
-    if (weeks <= 27) return "Second Trimester";
-    return "Third Trimester";
-  };
-
-  const renderInputField = (
-    label,
-    field,
-    placeholder,
-    keyboardType = "default",
-    multiline = false,
-  ) => (
-    <View style={styles.inputContainer}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={[styles.input, multiline && styles.textArea]}
-        value={profileData[field]}
-        onChangeText={(value) => handleInputChange(field, value)}
-        placeholder={placeholder}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        numberOfLines={multiline ? 4 : 1}
-      />
-    </View>
-  );
-
-  const renderProgressIndicator = () => (
-    <View style={styles.progressCard}>
-      <Text style={styles.cardTitle}>Pregnancy Progress</Text>
-      <View style={styles.progressInfo}>
-        <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>Gestational Age:</Text>
-          <Text style={styles.progressValue}>{calculateGestationalAge()}</Text>
-        </View>
-        <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>Current Trimester:</Text>
-          <Text style={styles.progressValue}>{calculateTrimester()}</Text>
-        </View>
-        <View style={styles.progressItem}>
-          <Text style={styles.progressLabel}>Due Date:</Text>
-          <Text style={styles.progressValue}>
-            {profileData.due_date || "Not set"}
+  const ExpandableSection = ({
+    title,
+    icon,
+    expanded: isExpanded,
+    onPress,
+    children,
+  }) => (
+    <View style={styles.section}>
+      <TouchableOpacity
+        style={[
+          styles.sectionHeader,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+        onPress={onPress}
+      >
+        <View style={styles.sectionHeaderLeft}>
+          <View
+            style={[
+              styles.sectionIcon,
+              { backgroundColor: colors.primary + "15" },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name={icon}
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            {title}
           </Text>
         </View>
-      </View>
+        <MaterialCommunityIcons
+          name={isExpanded ? "chevron-up" : "chevron-down"}
+          size={24}
+          color={colors.primary}
+        />
+      </TouchableOpacity>
+      {isExpanded && (
+        <View
+          style={[
+            styles.sectionContent,
+            { backgroundColor: colors.background, borderColor: colors.border },
+          ]}
+        >
+          {children}
+        </View>
+      )}
     </View>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3498db" />
-          <Text style={styles.loadingText}>Loading pregnancy profile...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pregnancy Profile</Text>
-        <View style={styles.placeholder} />
-      </View>
-
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <ScrollView
-        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
       >
-        {renderProgressIndicator()}
-
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Pregnancy Information</Text>
-
-          {renderInputField(
-            "Due Date (YYYY-MM-DD)",
-            "due_date",
-            "2024-12-15",
-            "default",
-          )}
-          {renderInputField(
-            "Last Menstrual Period (YYYY-MM-DD)",
-            "last_menstrual_period",
-            "2024-03-15",
-            "default",
-          )}
-          {renderInputField(
-            "Conception Date (YYYY-MM-DD)",
-            "conception_date",
-            "2024-03-30",
-            "default",
-          )}
-
-          <Text style={styles.sectionTitle}>Important Dates & Scans</Text>
-          {renderInputField(
-            "First Trimester Screening Date",
-            "first_trimester_screening",
-            "2024-05-15",
-            "default",
-          )}
-          {renderInputField(
-            "Second Trimester Scan Date",
-            "second_trimester_scan",
-            "2024-07-15",
-            "default",
-          )}
-          {renderInputField(
-            "Third Trimester Scan Date",
-            "third_trimester_scan",
-            "2024-09-15",
-            "default",
-          )}
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <MaterialCommunityIcons
+              name="chevron-left"
+              size={28}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            Pregnancy Profile
+          </Text>
+          <TouchableOpacity onPress={() => router.push("/edit-profile")}>
+            <MaterialCommunityIcons
+              name="pencil"
+              size={24}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Medical Information</Text>
-
-          <View style={styles.row}>
-            <View style={styles.halfWidth}>
-              {renderInputField("Blood Type", "blood_type", "O+", "default")}
+        {/* Summary Card */}
+        <View
+          style={[
+            styles.summaryCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, { color: colors.foreground }]}>
+                {profile.gestational_age || "28"}
+              </Text>
+              <Text style={[styles.summaryLabel, { color: colors.muted }]}>
+                Weeks
+              </Text>
             </View>
-            <View style={styles.halfWidth}>
-              {renderInputField(
-                "RH Factor",
-                "rh_factor",
-                "Positive",
-                "default",
-              )}
+            <View
+              style={[
+                styles.summaryDivider,
+                { backgroundColor: colors.border },
+              ]}
+            />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, { color: colors.foreground }]}>
+                {profile.trimester || "2nd"}
+              </Text>
+              <Text style={[styles.summaryLabel, { color: colors.muted }]}>
+                Trimester
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.summaryDivider,
+                { backgroundColor: colors.border },
+              ]}
+            />
+            <View style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, { color: colors.foreground }]}>
+                {profile.due_date || "Jun 15"}
+              </Text>
+              <Text style={[styles.summaryLabel, { color: colors.muted }]}>
+                Due Date
+              </Text>
             </View>
           </View>
-
-          {renderInputField(
-            "Allergies",
-            "allergies",
-            "Enter any known allergies",
-            "default",
-            true,
-          )}
-          {renderInputField(
-            "Current Medications",
-            "medications",
-            "List current medications",
-            "default",
-            true,
-          )}
         </View>
 
-        <View style={styles.formCard}>
-          <Text style={styles.cardTitle}>Pregnancy History</Text>
-
-          {renderInputField(
-            "Previous Pregnancies",
-            "previous_pregnancies",
-            "Number and outcomes of previous pregnancies",
-            "default",
-            true,
-          )}
-          {renderInputField(
-            "Complications",
-            "complications",
-            "Any previous or current complications",
-            "default",
-            true,
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.buttonDisabled]}
-          onPress={handleSave}
-          disabled={saving}
+        {/* Baby Development Section */}
+        <ExpandableSection
+          title="Baby Development"
+          icon="baby-carriage"
+          expanded={expanded.development}
+          onPress={() => toggleExpanded("development")}
         >
-          {saving ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Profile</Text>
-          )}
-        </TouchableOpacity>
+          <View style={styles.contentGrid}>
+            <View style={styles.contentItem}>
+              <Text style={[styles.contentLabel, { color: colors.muted }]}>
+                Weight
+              </Text>
+              <Text style={[styles.contentValue, { color: colors.foreground }]}>
+                {profile.baby_weight || "1 lb"} (approx)
+              </Text>
+            </View>
+            <View style={styles.contentItem}>
+              <Text style={[styles.contentLabel, { color: colors.muted }]}>
+                Length
+              </Text>
+              <Text style={[styles.contentValue, { color: colors.foreground }]}>
+                {profile.baby_length || "15 in"} (approx)
+              </Text>
+            </View>
+            <View style={styles.contentItem}>
+              <Text style={[styles.contentLabel, { color: colors.muted }]}>
+                Position
+              </Text>
+              <Text style={[styles.contentValue, { color: colors.foreground }]}>
+                {profile.baby_position || "Head Down"}
+              </Text>
+            </View>
+            <View style={styles.contentItem}>
+              <Text style={[styles.contentLabel, { color: colors.muted }]}>
+                Heart Rate
+              </Text>
+              <Text style={[styles.contentValue, { color: colors.foreground }]}>
+                {profile.baby_heart_rate || "140"} bpm
+              </Text>
+            </View>
+          </View>
+        </ExpandableSection>
+
+        {/* Checkups Section */}
+        <ExpandableSection
+          title="Checkups"
+          icon="clipboard-list"
+          expanded={expanded.checkups}
+          onPress={() => toggleExpanded("checkups")}
+        >
+          <View style={styles.checkupItem}>
+            <View style={styles.checkupHeader}>
+              <Text style={[styles.checkupTitle, { color: colors.foreground }]}>
+                Last Checkup
+              </Text>
+              <MaterialCommunityIcons
+                name="check-circle"
+                size={20}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={[styles.checkupDetail, { color: colors.muted }]}>
+              Date: {profile.last_checkup_date || "Mar 20, 2026"}
+            </Text>
+            <Text style={[styles.checkupDetail, { color: colors.muted }]}>
+              Doctor: {profile.doctor_name || "Dr. Sarah Johnson"}
+            </Text>
+            <Text style={[styles.checkupDetail, { color: colors.muted }]}>
+              Status: All normal
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.nextCheckupItem,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.primary,
+              },
+            ]}
+          >
+            <View style={styles.checkupHeader}>
+              <Text style={[styles.checkupTitle, { color: colors.foreground }]}>
+                Next Checkup
+              </Text>
+              <MaterialCommunityIcons
+                name="calendar-clock"
+                size={20}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={[styles.checkupDetail, { color: colors.muted }]}>
+              Scheduled: {profile.next_checkup_date || "Apr 10, 2026"}
+            </Text>
+            <Text style={[styles.checkupDetail, { color: colors.muted }]}>
+              Location: {profile.clinic_name || "Maternity Clinic"}
+            </Text>
+          </View>
+        </ExpandableSection>
+
+        {/* Milestones Timeline */}
+        <ExpandableSection
+          title="Pregnancy Milestones"
+          icon="timeline"
+          expanded={expanded.milestones}
+          onPress={() => toggleExpanded("milestones")}
+        >
+          <View style={styles.timeline}>
+            {milestones.map((milestone, idx) => (
+              <View key={idx} style={styles.timelineItem}>
+                <View style={styles.timelineIndicator}>
+                  <View
+                    style={[
+                      styles.timelineDot,
+                      {
+                        backgroundColor: milestone.completed
+                          ? colors.primary
+                          : colors.muted,
+                      },
+                    ]}
+                  />
+                  {idx < milestones.length - 1 && (
+                    <View
+                      style={[
+                        styles.timelineLine,
+                        { backgroundColor: colors.border },
+                      ]}
+                    />
+                  )}
+                </View>
+                <View style={styles.timelineContent}>
+                  <View style={styles.timelineHeader}>
+                    <Text
+                      style={[
+                        styles.timelineWeek,
+                        { color: colors.foreground },
+                      ]}
+                    >
+                      Week {milestone.week}
+                    </Text>
+                    {milestone.completed && (
+                      <MaterialCommunityIcons
+                        name="check-circle"
+                        size={18}
+                        color={colors.primary}
+                      />
+                    )}
+                  </View>
+                  <Text style={[styles.timelineTitle, { color: colors.muted }]}>
+                    {milestone.title}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </ExpandableSection>
       </ScrollView>
     </SafeAreaView>
   );
@@ -297,143 +363,175 @@ export default function PregnancyProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-  },
-  backButton: {
-    fontSize: 16,
-    color: "#3498db",
-    fontWeight: "600",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2c3e50",
-  },
-  placeholder: {
-    width: 60,
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingBottom: 20,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#7f8c8d",
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
-  scrollView: {
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  summaryCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+  },
+  summaryItem: {
+    alignItems: "center",
     flex: 1,
   },
-  scrollContent: {
-    padding: 20,
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
   },
-  progressCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  summaryLabel: {
+    fontSize: 12,
+    fontWeight: "500",
   },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#2c3e50",
+  summaryDivider: {
+    width: 1,
+    height: 40,
+    marginHorizontal: 8,
+  },
+  section: {
     marginBottom: 16,
   },
-  progressInfo: {
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  sectionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  sectionContent: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    padding: 14,
+  },
+  contentGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
-  progressItem: {
+  contentItem: {
+    width: "48%",
+  },
+  contentLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  contentValue: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  checkupItem: {
+    marginBottom: 12,
+    paddingBottom: 12,
+  },
+  checkupHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f3f4",
-  },
-  progressLabel: {
-    fontSize: 16,
-    color: "#7f8c8d",
-    fontWeight: "500",
-  },
-  progressValue: {
-    fontSize: 16,
-    color: "#2c3e50",
-    fontWeight: "600",
-  },
-  formCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginTop: 20,
-    marginBottom: 16,
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  halfWidth: {
-    flex: 1,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2c3e50",
     marginBottom: 8,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#e1e8ed",
-    borderRadius: 8,
+  checkupTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  checkupDetail: {
+    fontSize: 12,
+    fontWeight: "400",
+    marginBottom: 4,
+  },
+  nextCheckupItem: {
+    borderRadius: 10,
     padding: 12,
-    fontSize: 16,
-    backgroundColor: "#f8f9fa",
+    borderWidth: 1.5,
   },
-  textArea: {
-    height: 100,
-    textAlignVertical: "top",
+  timeline: {
+    paddingLeft: 0,
   },
-  saveButton: {
-    backgroundColor: "#27ae60",
-    borderRadius: 8,
-    padding: 16,
+  timelineItem: {
+    flexDirection: "row",
+    marginBottom: 16,
+  },
+  timelineIndicator: {
     alignItems: "center",
-    marginBottom: 20,
+    marginRight: 12,
+    width: 30,
   },
-  buttonDisabled: {
-    backgroundColor: "#bdc3c7",
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+  timelineLine: {
+    width: 2,
+    height: 40,
+    marginTop: 4,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingTop: 2,
+  },
+  timelineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  timelineWeek: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  timelineTitle: {
+    fontSize: 12,
+    fontWeight: "400",
+    marginTop: 2,
   },
 });

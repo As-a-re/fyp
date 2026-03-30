@@ -71,18 +71,29 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       setLoading(true);
+      console.log("AuthContext: Registering user with data:", userData);
       const response = await authAPI.register(userData);
+      console.log("AuthContext: API response:", response);
 
-      if (response.token && response.user) {
-        await AsyncStorage.setItem("authToken", response.token);
-        setUser(response.user);
-        setIsAuthenticated(true);
-        return { success: true, user: response.user };
+      if (response.success || response.user) {
+        // Registration successful, but don't auto-login
+        // User will need to login with their new credentials
+        console.log("AuthContext: Registration successful");
+        return {
+          success: true,
+          user: response.user,
+          message:
+            "Registration successful! Please login with your new account.",
+        };
       }
 
-      return { success: false, error: "Registration failed" };
+      console.log(
+        "AuthContext: Registration response not successful:",
+        response,
+      );
+      return { success: false, error: response.error || "Registration failed" };
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("AuthContext: Registration error:", error);
       return {
         success: false,
         error: error.message || "Registration failed. Please try again.",

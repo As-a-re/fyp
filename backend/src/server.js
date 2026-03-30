@@ -9,6 +9,9 @@ const healthRoutes = require("./routes/health");
 const predictionRoutes = require("./routes/prediction");
 const aiRoutes = require("./routes/ai");
 const messageRoutes = require("./routes/messages");
+const appointmentRoutes = require("./routes/appointments");
+const medicalRoutes = require("./routes/medical");
+const doctorRoutes = require("./routes/doctor");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,7 +23,12 @@ app.use(
     origin:
       process.env.NODE_ENV === "production"
         ? ["https://yourapp.com"]
-        : ["http://localhost:19006", "exp://192.168.1.100:19000"],
+        : [
+            "http://localhost:19006",
+            "exp://192.168.1.100:19000",
+            "http://localhost:8081",
+            "http://localhost:3000",
+          ],
     credentials: true,
   }),
 );
@@ -43,6 +51,9 @@ app.use("/api/health", healthRoutes);
 app.use("/api/predict", predictionRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/appointments", appointmentRoutes);
+app.use("/api/medical", medicalRoutes);
+app.use("/api/doctor", doctorRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

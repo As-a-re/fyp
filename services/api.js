@@ -1,9 +1,30 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 
-const API_BASE_URL = __DEV__
-  ? "http://localhost:5000/api"
-  : "https://your-production-api.com/api";
+// API Base URL - prioritize environment variables, then use defaults based on environment
+const getApiBaseUrl = () => {
+  // For production
+  if (!__DEV__) {
+    return (
+      process.env.EXPO_PUBLIC_PROD_API_URL ||
+      "https://your-production-api.com/api"
+    );
+  }
+
+  // For development - try environment variable first
+  const devUrl = process.env.EXPO_PUBLIC_DEV_API_URL;
+  if (devUrl) {
+    return devUrl;
+  }
+
+  // Fallback for local development
+  // Use 10.0.2.2 for Android emulator (refers to host machine)
+  // Use localhost for web
+  // For physical devices, set EXPO_PUBLIC_DEV_API_URL to your machine IP
+  return "http://localhost:5000/api";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiClient {
   constructor() {
@@ -44,8 +65,10 @@ class ApiClient {
     };
 
     try {
+      console.log(`API Request: ${options.method || "GET"} ${url}`);
       const response = await fetch(url, config);
       const data = await response.json();
+      console.log(`API Response (${response.status}):`, data);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -53,12 +76,13 @@ class ApiClient {
           this.setToken(null);
           throw new Error("Session expired. Please login again.");
         }
+        console.error(`API Error (${response.status}):`, data);
         throw new Error(data.error || data.message || "Request failed");
       }
 
       return data;
     } catch (error) {
-      console.error("API Error:", error);
+      console.error("API Fetch Error:", error);
       throw error;
     }
   }
@@ -144,15 +168,17 @@ export const predictionAPI = {
     apiClient.get("/predict/history", params),
 };
 
-// AI Assistant API
+// AI Conversation API
 export const aiAPI = {
+  createConversation: (data = {}) =>
+    apiClient.post("/ai/create-conversation", data),
   startSession: (data = {}) => apiClient.post("/ai/start-session", data),
-  endSession: (sessionId) =>
-    apiClient.post("/ai/end-session", { session_id: sessionId }),
-  getSessions: (params = {}) => apiClient.get("/ai/sessions", params),
-  getActiveSession: () => apiClient.get("/ai/active-session"),
   analyzeSymptom: (symptomData) =>
     apiClient.post("/ai/analyze-symptom", symptomData),
+  chat: (messageData) => apiClient.post("/ai/chat", messageData),
+  getSessions: (params = {}) => apiClient.get("/ai/sessions", params),
+  getConversationMessages: (conversationId) =>
+    apiClient.get(`/ai/conversations/${conversationId}/messages`),
 };
 
 // Messaging API
@@ -165,6 +191,48 @@ export const messageAPI = {
   getUnreadCount: () => apiClient.get("/messages/unread-count"),
   markAsRead: (messageId) => apiClient.post(`/messages/mark-read/${messageId}`),
   getPatients: () => apiClient.get("/messages/doctor/patients"),
+};
+
+// User Profile API
+export const userAPI = {
+  getProfile: () => apiClient.get("/auth/profile"),
+  updateProfile: (profileData) => apiClient.put("/auth/profile", profileData),
+  getPregnancyProfile: () => apiClient.get("/auth/pregnancy-profile"),
+  updatePregnancyProfile: (profileData) =>
+    apiClient.put("/auth/pregnancy-profile", profileData),
+  updatePassword: (passwordData) =>
+    apiClient.post("/auth/change-password", passwordData),
+};
+
+// Appointments API
+export const appointmentAPI = {
+  getAppointments: (params = {}) => apiClient.get("/appointments", params),
+  bookAppointment: (appointmentData) =>
+    apiClient.post("/appointments", appointmentData),
+  cancelAppointment: (appointmentId) =>
+    apiClient.delete(`/appointments/${appointmentId}`),
+  getDoctorAppointments: (params = {}) =>
+    apiClient.get("/appointments/doctor", params),
+};
+
+// Medical Records API
+export const medicalAPI = {
+  getTestResults: (params = {}) =>
+    apiClient.get("/medical/test-results", params),
+  getVaccinations: () => apiClient.get("/medical/vaccinations"),
+  recordVaccination: (vaccinationData) =>
+    apiClient.post("/medical/vaccinations", vaccinationData),
+};
+
+// Doctor-Patient API
+export const doctorAPI = {
+  getPatients: (params = {}) => apiClient.get("/doctor/patients", params),
+  getPatientDetails: (patientId) =>
+    apiClient.get(`/doctor/patients/${patientId}`),
+  getPatientHistory: (patientId, params = {}) =>
+    apiClient.get(`/doctor/patients/${patientId}/history`, params),
+  addNote: (patientId, noteData) =>
+    apiClient.post(`/doctor/patients/${patientId}/notes`, noteData),
 };
 
 // Utility function for error handling

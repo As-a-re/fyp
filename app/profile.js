@@ -1,155 +1,279 @@
-import { useState } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Colors } from "../constants/theme";
 import { useAuth } from "../contexts/AuthContext";
+import { userAPI } from "../services/api";
 
-export default function ProfileScreen({ navigation }) {
+export default function ProfileScreen() {
+  const router = useRouter();
+  const colors = Colors.light;
   const { user, logout } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [profileData, setProfileData] = useState(null);
 
-  const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", onPress: logout, style: "destructive" },
-    ]);
+  useEffect(() => {
+    loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      const response = await userAPI.getProfile();
+      setProfileData(response.user || user);
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "This action cannot be undone. Are you sure you want to delete your account?",
-      [
-        { text: "Cancel", style: "cancel" },
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadProfile();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Navigation will be handled by layout based on isAuthenticated state
+      router.replace("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  const displayUser = profileData || user;
+
+  const profileSections = [
+    {
+      title: "Account",
+      items: [
         {
-          text: "Delete",
-          onPress: () => {
-            // This would need to be implemented in the backend
-            Alert.alert("Info", "Account deletion feature coming soon");
-          },
-          style: "destructive",
+          icon: "account",
+          label: "Personal Information",
+          onPress: () => router.push("/edit-profile"),
+        },
+        {
+          icon: "hospital-box",
+          label: "Pregnancy Profile",
+          onPress: () => router.push("/pregnancy-profile"),
+        },
+        {
+          icon: "lock",
+          label: "Change Password",
+          onPress: () => router.push("/change-password"),
         },
       ],
-    );
-  };
-
-  if (!user) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3498db" />
-        </View>
-      </SafeAreaView>
-    );
-  }
+    },
+    {
+      title: "Medical Records",
+      items: [
+        {
+          icon: "file-document",
+          label: "Test Results",
+          onPress: () => router.push("/test-results"),
+        },
+        {
+          icon: "syringe",
+          label: "Vaccination Records",
+          onPress: () => router.push("/vaccination-records"),
+        },
+        {
+          icon: "calendar-check",
+          label: "Appointments",
+          onPress: () => router.push("/appointments"),
+        },
+      ],
+    },
+    {
+      title: "Wellness",
+      items: [
+        {
+          icon: "food",
+          label: "Nutrition & Diet",
+          onPress: () => router.push("/nutrition-diet"),
+        },
+        {
+          icon: "run",
+          label: "Exercise & Fitness",
+          onPress: () => router.push("/exercise-fitness"),
+        },
+        {
+          icon: "brain",
+          label: "Mental Health",
+          onPress: () => router.push("/mental-health-wellness"),
+        },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        {
+          icon: "bell",
+          label: "Notifications",
+          onPress: () => router.push("/notifications"),
+        },
+        {
+          icon: "shield-check",
+          label: "Privacy & Security",
+          onPress: () => router.push("/privacy-security"),
+        },
+      ],
+    },
+  ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <View style={styles.placeholder} />
-      </View>
-
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <ScrollView
-        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
       >
-        <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user.name.charAt(0).toUpperCase()}
-              </Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.foreground }]}>
+            Profile
+          </Text>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+        ) : (
+          <>
+            {/* User Card */}
+            <View style={[styles.userCard, { backgroundColor: colors.card }]}>
+              <View
+                style={[styles.avatar, { backgroundColor: colors.primary }]}
+              >
+                <MaterialCommunityIcons
+                  name={
+                    displayUser?.role === "doctor"
+                      ? "stethoscope"
+                      : "baby-carriage"
+                  }
+                  size={32}
+                  color="#ffffff"
+                />
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={[styles.userName, { color: colors.foreground }]}>
+                  {displayUser?.name || "User"}
+                </Text>
+                <Text style={[styles.userRole, { color: colors.muted }]}>
+                  {displayUser?.role === "doctor"
+                    ? "Healthcare Provider"
+                    : "Mother"}
+                </Text>
+                <Text style={[styles.userEmail, { color: colors.muted }]}>
+                  {displayUser?.email}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.editIconButton,
+                  { backgroundColor: colors.primary + "10" },
+                ]}
+                onPress={() => router.push("/edit-profile")}
+              >
+                <MaterialCommunityIcons
+                  name="pencil"
+                  size={20}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
             </View>
-          </View>
 
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userEmail}>{user.email}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>{user.role}</Text>
-          </View>
-        </View>
+            {/* Profile Sections */}
+            {profileSections.map((section, sIdx) => (
+              <View key={sIdx} style={styles.section}>
+                <Text
+                  style={[styles.sectionTitle, { color: colors.foreground }]}
+                >
+                  {section.title}
+                </Text>
+                {section.items.map((item, iIdx) => (
+                  <TouchableOpacity
+                    key={iIdx}
+                    style={[
+                      styles.menuItem,
+                      {
+                        backgroundColor: colors.card,
+                        borderBottomColor:
+                          iIdx < section.items.length - 1
+                            ? colors.border
+                            : "transparent",
+                      },
+                    ]}
+                    onPress={item.onPress}
+                  >
+                    <View style={styles.menuItemLeft}>
+                      <View
+                        style={[
+                          styles.menuIconBox,
+                          { backgroundColor: colors.primary + "10" },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={item.icon}
+                          size={20}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <Text
+                        style={[styles.menuLabel, { color: colors.foreground }]}
+                      >
+                        {item.label}
+                      </Text>
+                    </View>
+                    <MaterialCommunityIcons
+                      name="chevron-right"
+                      size={20}
+                      color={colors.muted}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
 
-        <View style={styles.infoCard}>
-          <Text style={styles.cardTitle}>Account Information</Text>
+            {/* Logout Button */}
+            <TouchableOpacity
+              style={[styles.logoutButton, { backgroundColor: "#dc262610" }]}
+              onPress={handleLogout}
+            >
+              <MaterialCommunityIcons name="logout" size={20} color="#dc2626" />
+              <Text style={styles.logoutText}>Log Out</Text>
+            </TouchableOpacity>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Full Name</Text>
-            <Text style={styles.infoValue}>{user.name}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <Text style={styles.infoValue}>{user.email}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Role</Text>
-            <Text style={styles.infoValue}>{user.role}</Text>
-          </View>
-
-          {user.phone && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Phone</Text>
-              <Text style={styles.infoValue}>{user.phone}</Text>
-            </View>
-          )}
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Language</Text>
-            <Text style={styles.infoValue}>{user.language || "English"}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Member Since</Text>
-            <Text style={styles.infoValue}>
-              {new Date(user.created_at).toLocaleDateString()}
+            {/* Version Info */}
+            <Text style={[styles.version, { color: colors.muted }]}>
+              MamaGuard v1.0.0
             </Text>
-          </View>
-        </View>
-
-        <View style={styles.actionsCard}>
-          <Text style={styles.cardTitle}>Actions</Text>
-
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Notification Settings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Privacy Settings</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionButtonText}>Help & Support</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.dangerButton]}
-            onPress={handleDeleteAccount}
-          >
-            <Text style={[styles.actionButtonText, styles.dangerButtonText]}>
-              Delete Account
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -158,163 +282,125 @@ export default function ProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e1e8ed",
-  },
-  backButton: {
-    fontSize: 16,
-    color: "#3498db",
-    fontWeight: "600",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2c3e50",
-  },
-  placeholder: {
-    width: 60,
-  },
-  scrollView: {
-    flex: 1,
   },
   scrollContent: {
-    padding: 20,
-  },
-  profileCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 24,
-    alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  avatarContainer: {
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#3498db",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 16,
-    color: "#7f8c8d",
-    marginBottom: 12,
-  },
-  roleBadge: {
-    backgroundColor: "#ecf0f1",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  roleText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#2c3e50",
-  },
-  infoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: 16,
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f3f4",
-  },
-  infoLabel: {
-    fontSize: 16,
-    color: "#7f8c8d",
-    fontWeight: "500",
-  },
-  infoValue: {
-    fontSize: 16,
-    color: "#2c3e50",
-    fontWeight: "600",
-  },
-  actionsCard: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  actionButton: {
+    paddingHorizontal: 16,
     paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f3f4",
-  },
-  dangerButton: {
-    borderBottomWidth: 0,
-  },
-  actionButtonText: {
-    fontSize: 16,
-    color: "#2c3e50",
-    fontWeight: "500",
-  },
-  dangerButtonText: {
-    color: "#e74c3c",
-  },
-  logoutButton: {
-    backgroundColor: "#e74c3c",
-    borderRadius: 8,
-    padding: 16,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  logoutButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    paddingBottom: 20,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingVertical: 100,
+  },
+  header: {
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
+  userCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  userRole: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 12,
+    fontWeight: "400",
+  },
+  editIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 14,
+    borderBottomWidth: 1,
+    borderRadius: 12,
+    marginBottom: 1,
+  },
+  menuItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  menuIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 10,
+    paddingVertical: 14,
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  logoutText: {
+    color: "#dc2626",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  version: {
+    fontSize: 12,
+    fontWeight: "400",
+    textAlign: "center",
+    marginTop: 16,
   },
 });

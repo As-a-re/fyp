@@ -24,8 +24,9 @@ router.post(
       .withMessage("Invalid role"),
     body("phone")
       .optional()
-      .isMobilePhone()
-      .withMessage("Invalid phone number"),
+      .matches(/^[\d+\-\s\(\)]+$/)
+      .isLength({ min: 10 })
+      .withMessage("Phone must be at least 10 digits"),
     body("language")
       .optional()
       .isString()
@@ -35,7 +36,11 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        const errorMessages = errors
+          .array()
+          .map((e) => e.msg)
+          .join("; ");
+        return res.status(400).json({ success: false, error: errorMessages });
       }
 
       const {
@@ -99,6 +104,7 @@ router.post(
       );
 
       res.status(201).json({
+        success: true,
         message: "User registered successfully",
         token,
         user: {

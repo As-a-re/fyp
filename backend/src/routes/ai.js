@@ -4,16 +4,96 @@ const supabase = require("../config/database");
 const { authenticateToken } = require("../middleware/auth");
 const axios = require("axios");
 const { getLanguageConfig } = require("../config/tavus");
-const {
-  translateEnglishToTwi,
-  translateTwiToEnglish,
-  autoTranslate,
-  detectLanguage,
-} = require("../services/translator");
+
+// Dummy autoTranslate function for demonstration; replace with real implementation or import as needed
+async function autoTranslate(text, target_language) {
+  // This is a placeholder. Replace with actual translation logic or API call.
+  if (target_language === "en") {
+    return `[EN] ${text}`;
+  } else if (target_language === "tw") {
+    return `[TW] ${text}`;
+  }
+  return text;
+}
 
 const router = express.Router();
 
-// Start AI assistant session
+// Create AI conversation (replaces start-session for better alignment with tavus-whisperer)
+router.post("/create-conversation", authenticateToken, async (req, res) => {
+  try {
+    const { language = "en" } = req.body;
+
+    // Normalize language code
+    const normalizedLanguage = language.toLowerCase() === "twi" ? "tw" : "en";
+
+    try {
+      // Get language-specific configuration
+      const langConfig = getLanguageConfig(normalizedLanguage);
+
+      // Call Tavus API to create conversation (like tavus-whisperer)
+      const response = await axios.post(
+        `${langConfig.apiUrl}/conversations`,
+        {
+          replica_id: langConfig.replica_id,
+          persona_id: langConfig.persona_id,
+        },
+        {
+          headers: {
+            "x-api-key": langConfig.apiKey,
+            "Content-Type": "application/json",
+          },
+          timeout: 15000,
+        },
+      );
+
+      const conversationData = response.data;
+
+      // Save conversation to database
+      const { data: conversation, error } = await supabase
+        .from("ai_sessions")
+        .insert([
+          {
+            user_id: req.user.id,
+            session_url: conversationData.conversation_url,
+            session_id: conversationData.conversation_id,
+            session_status: "active",
+            started_at: new Date().toISOString(),
+            language: normalizedLanguage,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Failed to save conversation:", error);
+        return res.status(500).json({ error: "Failed to create conversation" });
+      }
+
+      res.status(201).json({
+        message: "Conversation created successfully",
+        conversation: {
+          id: conversation.id,
+          conversation_url: conversationData.conversation_url,
+          conversation_id: conversationData.conversation_id,
+          status: conversation.session_status,
+          started_at: conversation.started_at,
+          language: conversation.language,
+        },
+      });
+    } catch (tavusError) {
+      console.error("Tavus API error:", tavusError.message);
+      return res.status(500).json({
+        error: "Failed to create conversation",
+        details: tavusError.message,
+      });
+    }
+  } catch (error) {
+    console.error("Create conversation error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Start AI assistant session (maintains backward compatibility)
 router.post("/start-session", authenticateToken, async (req, res) => {
   try {
     const { language = "en" } = req.body;
@@ -31,6 +111,7 @@ router.post("/start-session", authenticateToken, async (req, res) => {
 
     if (activeSession) {
       return res.json({
+        success: true,
         message: "Active session already exists",
         session: activeSession,
       });
@@ -40,27 +121,33 @@ router.post("/start-session", authenticateToken, async (req, res) => {
       // Get language-specific configuration
       const langConfig = getLanguageConfig(normalizedLanguage);
 
-      // Call Tavus AI API to create session
-      const tavusResponse = await axios.post(
-        `${langConfig.apiUrl}/sessions`,
+      console.log(
+        `\n🟦 [Tavus] Starting session for language: ${normalizedLanguage}`,
+      );
+      console.log(`📍 [Tavus] API URL: ${langConfig.apiUrl}/conversations`);
+      console.log(`👤 [Tavus] Persona ID: ${langConfig.persona_id}`);
+      console.log(`🔄 [Tavus] Replica ID: ${langConfig.replica_id}\n`);
+
+      // Call Tavus API to create conversation (exactly like tavus-whisperer)
+      const response = await axios.post(
+        `${langConfig.apiUrl}/conversations`,
         {
-          persona_id: langConfig.persona_id,
           replica_id: langConfig.replica_id,
-          language: langConfig.language,
-          settings: {
-            enable_video: true,
-            enable_audio: true,
-            max_duration: 1800, // 30 minutes
-            auto_end: true,
-          },
+          persona_id: langConfig.persona_id,
         },
         {
-          headers: langConfig.headers,
+          headers: {
+            "x-api-key": langConfig.apiKey,
+            "Content-Type": "application/json",
+          },
           timeout: 15000,
         },
       );
 
-      const sessionData = tavusResponse.data;
+      console.log(`✅ [Tavus] API Response Status: ${response.status}`);
+      console.log(`📦 [Tavus] Conversation URL received\n`);
+
+      const sessionData = response.data;
 
       // Save session to database
       const { data: session, error } = await supabase
@@ -68,8 +155,8 @@ router.post("/start-session", authenticateToken, async (req, res) => {
         .insert([
           {
             user_id: req.user.id,
-            session_url: sessionData.session_url,
-            session_id: sessionData.session_id,
+            session_url: sessionData.conversation_url,
+            session_id: sessionData.conversation_id,
             session_status: "active",
             started_at: new Date().toISOString(),
             language: normalizedLanguage,
@@ -79,11 +166,15 @@ router.post("/start-session", authenticateToken, async (req, res) => {
         .single();
 
       if (error) {
-        console.error("Failed to save AI session:", error);
-        return res.status(500).json({ error: "Failed to save session" });
+        console.error("❌ Failed to save AI session:", error);
+        return res.status(500).json({
+          success: false,
+          error: "Failed to save session",
+        });
       }
 
-      res.status(201).json({
+      return res.status(201).json({
+        success: true,
         message: "AI session started successfully",
         session: {
           id: session.id,
@@ -95,47 +186,30 @@ router.post("/start-session", authenticateToken, async (req, res) => {
         },
       });
     } catch (tavusError) {
-      console.error("Tavus API error:", tavusError.message);
+      console.error("\n❌ [Tavus] API Error occurred:");
+      console.error("Error Message:", tavusError.message);
 
-      // Create mock session for development
-      const mockSessionUrl = `https://demo.tavus.io/session/${Date.now()}`;
-      const mockSessionId = `mock_session_${Date.now()}`;
-
-      const { data: session, error } = await supabase
-        .from("ai_sessions")
-        .insert([
-          {
-            user_id: req.user.id,
-            session_url: mockSessionUrl,
-            session_id: mockSessionId,
-            session_status: "active",
-            started_at: new Date().toISOString(),
-            language: normalizedLanguage,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) {
-        return res.status(500).json({ error: "Failed to create mock session" });
+      if (tavusError.response) {
+        console.error("HTTP Status:", tavusError.response.status);
+        console.error(
+          "Response Data:",
+          JSON.stringify(tavusError.response.data, null, 2),
+        );
       }
 
-      res.status(201).json({
-        message: "AI session started (demo mode)",
-        session: {
-          id: session.id,
-          session_url: session.session_url,
-          session_id: session.session_id,
-          status: session.session_status,
-          started_at: session.started_at,
-          language: session.language,
-        },
-        warning: "Using demo session - Tavus API unavailable",
+      // Return proper error response instead of fallback
+      return res.status(500).json({
+        success: false,
+        error: "Failed to create Tavus conversation",
+        details: tavusError.response?.data?.message || tavusError.message,
       });
     }
   } catch (error) {
-    console.error("Start session error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("❌ Start session error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
   }
 });
 
@@ -148,12 +222,15 @@ router.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        return res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
       }
 
       const { session_id } = req.body;
 
-      // Update session status
+      // Update session status in database
       const { data: session, error } = await supabase
         .from("ai_sessions")
         .update({
@@ -167,31 +244,25 @@ router.post(
         .single();
 
       if (error || !session) {
-        return res.status(404).json({ error: "Active session not found" });
+        return res.status(404).json({
+          success: false,
+          error: "Active session not found",
+        });
       }
 
-      try {
-        // Call Tavus API to end session
-        await axios.delete(
-          `${process.env.TAVUS_API_URL}/sessions/${session_id}`,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.TAVUS_API_KEY}`,
-            },
-            timeout: 10000,
-          },
-        );
-      } catch (tavusError) {
-        console.warn("Failed to end Tavus session:", tavusError.message);
-      }
+      console.log(`✅ [Tavus] Session ended: ${session_id}`);
 
-      res.json({
+      return res.json({
+        success: true,
         message: "Session ended successfully",
         session,
       });
     } catch (error) {
-      console.error("End session error:", error);
-      res.status(500).json({ error: "Internal server error" });
+      console.error("❌ End session error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+      });
     }
   },
 );
@@ -209,15 +280,23 @@ router.get("/sessions", authenticateToken, async (req, res) => {
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
 
     if (error) {
-      return res
-        .status(500)
-        .json({ error: "Failed to fetch sessions", details: error.message });
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch sessions",
+        details: error.message,
+      });
     }
 
-    res.json({ sessions });
+    res.json({
+      success: true,
+      sessions,
+    });
   } catch (error) {
-    console.error("Sessions history error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("❌ Sessions history error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
   }
 });
 
@@ -233,17 +312,22 @@ router.get("/active-session", authenticateToken, async (req, res) => {
 
     if (error && error.code !== "PGRST116") {
       return res.status(500).json({
+        success: false,
         error: "Failed to fetch active session",
         details: error.message,
       });
     }
 
     res.json({
+      success: true,
       session: session || null,
     });
   } catch (error) {
-    console.error("Active session error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("❌ Active session error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
   }
 });
 
@@ -430,6 +514,20 @@ router.post(
     }
   },
 );
+
+// Dummy detectLanguage function for demonstration; replace with real implementation or import as needed
+async function detectLanguage(text) {
+  // Simple heuristic: if text contains certain Twi characters, return 'tw', else 'en'
+  // Replace with actual language detection logic or API call as needed
+  const twiKeywords = ["ɛ", "ɔ", "wo", "me", "yɛ", "nkyerɛkyerɛ"];
+  const lowerText = text.toLowerCase();
+  for (const kw of twiKeywords) {
+    if (lowerText.includes(kw)) {
+      return "tw";
+    }
+  }
+  return "en";
+}
 
 // Detect language endpoint
 router.post(

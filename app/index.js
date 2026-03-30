@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Colors } from "../constants/theme";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function IndexScreen() {
@@ -21,13 +22,13 @@ export default function IndexScreen() {
   useEffect(() => {
     // Check authentication status when app starts
     checkAuthStatus();
-  }, []);
+  }, [checkAuthStatus]);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3498db" />
+          <ActivityIndicator size="large" color={Colors.light.primary} />
           <Text style={styles.loadingText}>Prenatal Care System</Text>
           <Text style={styles.subtitle}>Loading your health data...</Text>
         </View>
@@ -41,7 +42,7 @@ export default function IndexScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: Colors.light.background,
   },
   loadingContainer: {
     flex: 1,
@@ -52,12 +53,12 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: Colors.light.foreground,
     marginTop: 20,
   },
   subtitle: {
     fontSize: 16,
-    color: "#7f8c8d",
+    color: Colors.light.muted,
     marginTop: 8,
   },
 });
