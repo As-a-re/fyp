@@ -1,17 +1,17 @@
 ﻿import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import TavusAIAssistant from "../components/TavusAIComponent";
+
+import BottomNav from "../components/BottomNav";
 import { Colors } from "../constants/theme";
 import { aiAPI } from "../services/api";
-
 export default function AIAssistantScreen() {
   const colors = Colors.light;
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -36,104 +36,82 @@ export default function AIAssistantScreen() {
   };
 
   const renderWelcomeScreen = () => (
-    <View style={styles.sessionStartContainer}>
-      <View style={styles.sessionStartContent}>
-        {/* Decorative Background */}
-        <View
-          style={[
-            styles.sessionStartBgCircle,
-            { backgroundColor: colors.primary + "10" },
-          ]}
-        />
-
-        {/* AI Avatar */}
-        <View
-          style={[
-            styles.sessionStartAvatar,
-            { backgroundColor: colors.primary },
-          ]}
-        >
+    <View style={styles.welcomeContainer}>
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <View style={styles.iconContainer}>
           <MaterialCommunityIcons
-            name="robot-happy"
-            size={60}
-            color="#ffffff"
+            name="robot"
+            size={40}
+            color={colors.primary}
           />
         </View>
-
-        {/* Title */}
-        <Text style={[styles.sessionStartTitle, { color: colors.foreground }]}>
-          AI Health Assistant
+        <Text style={[styles.welcomeTitle, { color: colors.text }]}>
+          Start a video session with your AI maternal health assistant
         </Text>
-
-        {/* Subtitle */}
-        <Text style={[styles.sessionStartSubtitle, { color: colors.muted }]}>
-          Your personal pregnancy health companion
-        </Text>
-
-        {/* Features List */}
-        <View style={styles.sessionStartFeatures}>
-          <View style={styles.featureItem}>
-            <MaterialCommunityIcons
-              name="check-circle"
-              size={20}
-              color={colors.primary}
-            />
-            <Text style={[styles.featureText, { color: colors.foreground }]}>
-              24/7 Support
-            </Text>
-          </View>
-
-          <View style={styles.featureItem}>
-            <MaterialCommunityIcons
-              name="check-circle"
-              size={20}
-              color={colors.primary}
-            />
-            <Text style={[styles.featureText, { color: colors.foreground }]}>
-              Personalized Advice
-            </Text>
-          </View>
-
-          <View style={styles.featureItem}>
-            <MaterialCommunityIcons
-              name="check-circle"
-              size={20}
-              color={colors.primary}
-            />
-            <Text style={[styles.featureText, { color: colors.foreground }]}>
-              Confidential & Secure
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Start Button */}
-      <View style={styles.sessionStartButtonContainer}>
         <TouchableOpacity
-          style={[
-            styles.sessionStartButton,
-            { backgroundColor: colors.primary },
-          ]}
+          style={[styles.startButton, { backgroundColor: colors.primary }]}
           onPress={handleStartSession}
           disabled={sessionLoading}
         >
           {sessionLoading ? (
-            <ActivityIndicator color="#ffffff" size="small" />
+            <ActivityIndicator color="#fff" />
           ) : (
-            <>
-              <MaterialCommunityIcons
-                name="chat-plus"
-                size={20}
-                color="#ffffff"
-              />
-              <Text style={styles.sessionStartButtonText}>
-                Start Conversation
-              </Text>
-            </>
+            <Text style={styles.startButtonText}>Start AI Session</Text>
           )}
         </TouchableOpacity>
-        <Text style={[styles.sessionStartPrivacy, { color: colors.muted }]}>
-          Your conversations are kept private and secure
+      </View>
+      <View
+        style={[
+          styles.infoBox,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+          The AI assistant uses Tavus video AI to provide real-time maternal
+          health guidance. It can answer questions about your pregnancy, explain
+          test results, and offer wellness tips.
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderActiveSession = () => (
+    <View style={styles.activeSessionContainer}>
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <View
+          style={[styles.listeningCircle, { backgroundColor: colors.primary }]}
+        >
+          <MaterialCommunityIcons name="robot" size={50} color="#fff" />
+        </View>
+        <Text style={[styles.listeningText, { color: colors.text }]}>
+          AI Assistant is listening...
+        </Text>
+        <View style={styles.controlsContainer}>
+          <TouchableOpacity style={styles.micButton}>
+            <MaterialCommunityIcons
+              name="microphone"
+              size={30}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.endButton, { backgroundColor: "#D9534F" }]}
+            onPress={() => setSessionStarted(false)}
+          >
+            <Text style={styles.endButtonText}>End Session</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View
+        style={[
+          styles.infoBox,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+          The AI assistant uses Tavus video AI to provide real-time maternal
+          health guidance. It can answer questions about your pregnancy, explain
+          test results, and offer wellness tips.
         </Text>
       </View>
     </View>
@@ -143,7 +121,16 @@ export default function AIAssistantScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      {!sessionStarted ? renderWelcomeScreen() : <TavusAIAssistant />}
+      <View style={styles.header}>
+        <MaterialCommunityIcons
+          name="robot-outline"
+          size={28}
+          color={colors.primary}
+        />
+        <Text style={[styles.title, { color: colors.text }]}>AI Assistant</Text>
+      </View>
+      {sessionStarted ? renderActiveSession() : renderWelcomeScreen()}
+      <BottomNav />
     </SafeAreaView>
   );
 }
@@ -152,98 +139,109 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  // ========== Session Start Screen Styles ==========
-  sessionStartContainer: {
-    flex: 1,
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  sessionStartContent: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
-  },
-  sessionStartBgCircle: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    top: -40,
-    opacity: 0.08,
-  },
-  sessionStartAvatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 32,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  sessionStartTitle: {
-    fontSize: 26,
-    fontWeight: "800",
-    marginBottom: 8,
-    textAlign: "center",
-    letterSpacing: -0.5,
-  },
-  sessionStartSubtitle: {
-    fontSize: 15,
-    fontWeight: "500",
-    textAlign: "center",
-    marginBottom: 36,
-    lineHeight: 22,
-    opacity: 0.8,
-  },
-  sessionStartFeatures: {
-    width: "100%",
-    gap: 14,
-  },
-  featureItem: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 8,
+    padding: 20,
   },
-  featureText: {
-    fontSize: 14,
-    fontWeight: "600",
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginLeft: 10,
+  },
+  welcomeContainer: {
     flex: 1,
-    lineHeight: 20,
+    justifyContent: "center",
+    padding: 20,
   },
-  sessionStartButtonContainer: {
-    gap: 14,
+  activeSessionContainer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+  },
+  card: {
+    borderRadius: 20,
+    padding: 30,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#E0F5E9",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 20,
   },
-  sessionStartButton: {
+  welcomeTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 30,
+  },
+  startButton: {
+    width: "100%",
+    height: 50,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  startButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  infoBox: {
+    marginTop: 20,
+    borderRadius: 15,
+    padding: 20,
+    borderWidth: 1,
+  },
+  infoText: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  listeningCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  listeningText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 30,
+  },
+  controlsContainer: {
     flexDirection: "row",
     alignItems: "center",
+    width: "100%",
+    justifyContent: "space-around",
+  },
+  micButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#f0f0f0",
     justifyContent: "center",
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
+    alignItems: "center",
   },
-  sessionStartButtonText: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+  endButton: {
+    paddingVertical: 15,
+    paddingHorizontal: 30,
+    borderRadius: 15,
   },
-  sessionStartPrivacy: {
-    fontSize: 12,
-    fontWeight: "500",
-    textAlign: "center",
-    lineHeight: 16,
-    opacity: 0.7,
+  endButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

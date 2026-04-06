@@ -2,13 +2,13 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../constants/theme";
@@ -57,8 +57,9 @@ export default function ProfileScreen() {
   };
 
   const displayUser = profileData || user;
+  const isDoctor = displayUser?.role?.toLowerCase() === "doctor";
 
-  const profileSections = [
+  const allProfileSections = [
     {
       title: "Account",
       items: [
@@ -135,6 +136,25 @@ export default function ProfileScreen() {
       ],
     },
   ];
+
+  // Filter sections based on user role
+  const profileSections = isDoctor
+    ? allProfileSections
+        .map((section) => {
+          if (section.title === "Account") {
+            return {
+              ...section,
+              items: section.items.filter(
+                (item) => item.label !== "Pregnancy Profile",
+              ),
+            };
+          }
+          return section;
+        })
+        .filter(
+          (section) => !["Medical Records", "Wellness"].includes(section.title),
+        )
+    : allProfileSections;
 
   return (
     <SafeAreaView

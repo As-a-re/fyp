@@ -3,16 +3,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../constants/theme";
@@ -80,23 +80,27 @@ export default function RegisterScreen() {
       const result = await register(registrationData);
 
       if (result.success) {
+        // Show success message and redirect to login
         Alert.alert(
           "Registration Successful",
-          "Your account has been created. Please login with your credentials.",
+          `Welcome, ${formData.name}! Your account has been created. Please login with your credentials.`,
           [
             {
               text: "Go to Login",
-              onPress: () => router.replace("/login"),
+              onPress: () => {
+                setLoading(false);
+                router.replace("/login");
+              },
             },
           ],
         );
       } else {
+        setLoading(false);
         Alert.alert("Registration Failed", result.error || "Unknown error");
       }
     } catch (error) {
-      Alert.alert("Error", error.message || "An unexpected error occurred");
-    } finally {
       setLoading(false);
+      Alert.alert("Error", error.message || "An unexpected error occurred");
     }
   };
 

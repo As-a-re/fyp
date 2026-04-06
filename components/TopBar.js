@@ -13,10 +13,10 @@ export default function TopBar() {
   return (
     <View style={styles.header}>
       <View style={styles.headerContent}>
-        <Text style={styles.subtext}>
+        <Text style={styles.userName}>
           {user?.role === "doctor" ? "Dr. " : ""}
+          {user?.name}
         </Text>
-        <Text style={styles.userName}>{user?.name}</Text>
       </View>
       <TouchableOpacity
         onPress={handleLogout}

@@ -47,6 +47,7 @@ function RootLayoutContent() {
           />
           <Stack.Screen name="profile" options={{ headerShown: false }} />
           <Stack.Screen name="patients" options={{ headerShown: false }} />
+          <Stack.Screen name="emergency" options={{ headerShown: false }} />
           <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
           <Stack.Screen
             name="change-password"

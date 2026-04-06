@@ -1,418 +1,259 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import BottomNav from "../components/BottomNav";
 import { Colors } from "../constants/theme";
-import { aiAPI } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
+
+const SeverityOption = ({ label, selected, onPress, colors }) => (
+  <TouchableOpacity
+    style={[
+      styles.severityOption,
+      {
+        backgroundColor: selected ? colors.primary : colors.card,
+        borderColor: selected ? colors.primary : colors.border,
+      },
+    ]}
+    onPress={onPress}
+  >
+    <Text
+      style={[styles.severityLabel, { color: selected ? "#fff" : colors.text }]}
+    >
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
 
 export default function SymptomCheckerScreen() {
-  const router = useRouter();
+  const { user } = useAuth();
   const colors = Colors.light;
-  const [symptomText, setSymptomText] = useState("");
-  const [severity, setSeverity] = useState("medium");
-  const [analyzing, setAnalyzing] = useState(false);
+  const [symptoms, setSymptoms] = useState("");
+  const [duration, setDuration] = useState("");
+  const [severity, setSeverity] = useState(null);
+  const [image, setImage] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const severityOptions = [
-    { label: "Low", value: "low", icon: "emoticon-happy", color: "#3db870" },
-    {
-      label: "Medium",
-      value: "medium",
-      icon: "emoticon-neutral",
-      color: "#ffa500",
-    },
-    { label: "High", value: "high", icon: "emoticon-sad", color: "#dc2626" },
-  ];
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
 
-  const handleAnalyze = async () => {
-    if (!symptomText.trim()) {
-      Alert.alert("Error", "Please describe your symptoms");
-      return;
-    }
-
-    if (symptomText.length < 5) {
-      Alert.alert("Error", "Please provide more details about your symptoms");
-      return;
-    }
-
-    setAnalyzing(true);
-    try {
-      const response = await aiAPI.analyzeSymptom({
-        symptom_text: symptomText.trim(),
-        severity_level: severity,
-      });
-
-      showAnalysisResult(response.analysis, response.symptom);
-      setSymptomText("");
-    } catch (error) {
-      console.error("Symptom analysis error:", error);
-      Alert.alert("Error", "Failed to analyze symptoms. Please try again.");
-    } finally {
-      setAnalyzing(false);
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
     }
   };
 
-  const showAnalysisResult = (analysis, symptom) => {
-    const riskLevel = analysis.prediction?.toLowerCase() || "low";
-    const riskEmoji = getRiskEmoji(riskLevel);
-
-    Alert.alert(
-      `${riskEmoji} Analysis Result`,
-      `Risk Level: ${riskLevel.toUpperCase()}\nConfidence: ${Math.round(analysis.confidence * 100)}%\n\n${analysis.recommendations?.join("\n") || "Monitor your symptoms"}`,
-      [
-        { text: "OK", style: "default" },
-        {
-          text: "Contact Doctor",
-          onPress: () => router.push("/messages"),
-          style: riskLevel === "high" ? "destructive" : "default",
-        },
-      ],
-    );
-  };
-
-  const getRiskEmoji = (risk) => {
-    switch (risk) {
-      case "high":
-        return "🚨";
-      case "medium":
-        return "⚠️";
-      case "low":
-      default:
-        return "✅";
+  const handleSubmit = () => {
+    if (!symptoms || !duration || !severity) {
+      Alert.alert("Missing Information", "Please fill out all fields.");
+      return;
     }
+    setSubmitting(true);
+    // Simulate API call
+    setTimeout(() => {
+      setSubmitting(false);
+      Alert.alert(
+        "Submission Received",
+        "A healthcare professional will review your symptoms and get back to you shortly.",
+      );
+      // Reset form
+      setSymptoms("");
+      setDuration("");
+      setSeverity(null);
+      setImage(null);
+    }, 1500);
   };
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            Symptom Checker
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.muted }]}>
-            Describe your symptoms for analysis
-          </Text>
-        </View>
-
-        {/* Symptom Input */}
-        <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
-            Describe Your Symptoms
-          </Text>
-          <TextInput
-            style={[
-              styles.textArea,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-                color: colors.foreground,
-              },
-            ]}
-            placeholder="e.g., I have been experiencing mild nausea and dizziness..."
-            placeholderTextColor={colors.muted}
-            multiline
-            numberOfLines={5}
-            value={symptomText}
-            onChangeText={setSymptomText}
-            editable={!analyzing}
-            textAlignVertical="top"
-          />
-          <Text style={[styles.characterCount, { color: colors.muted }]}>
-            {symptomText.length} characters
-          </Text>
-        </View>
-
-        {/* Severity Selector */}
-        <View style={styles.severitySection}>
-          <Text style={[styles.fieldLabel, { color: colors.foreground }]}>
-            Symptom Severity
-          </Text>
-          <View style={styles.severityGrid}>
-            {severityOptions.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.severityButton,
-                  {
-                    backgroundColor:
-                      severity === option.value
-                        ? option.color + "20"
-                        : colors.background,
-                    borderColor:
-                      severity === option.value ? option.color : colors.border,
-                  },
-                ]}
-                onPress={() => setSeverity(option.value)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name={option.icon}
-                  size={24}
-                  color={option.color}
-                />
-                <Text style={[styles.severityLabel, { color: option.color }]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Analysis Button */}
-        <TouchableOpacity
-          style={[
-            styles.analyzeButton,
-            analyzing && styles.analyzeButtonDisabled,
-          ]}
-          onPress={handleAnalyze}
-          disabled={analyzing}
-          activeOpacity={0.8}
-        >
-          {analyzing ? (
-            <ActivityIndicator color="#ffffff" size="small" />
-          ) : (
-            <>
-              <MaterialCommunityIcons
-                name="magnify"
-                size={18}
-                color="#ffffff"
-              />
-              <Text style={styles.analyzeButtonText}>Analyze Symptoms</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {/* Info Section */}
-        <View style={[styles.infoCard, { backgroundColor: colors.card }]}>
-          <View style={styles.infoHeader}>
-            <MaterialCommunityIcons
-              name="information"
-              size={20}
-              color={colors.primary}
-            />
-            <Text style={[styles.infoTitle, { color: colors.foreground }]}>
-              About This Tool
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Symptom Checker
             </Text>
           </View>
-          <Text style={[styles.infoText, { color: colors.muted }]}>
-            This symptom checker is designed to provide general health
-            information and help you understand potential concerns. It is not a
-            substitute for professional medical advice.
-          </Text>
-          <Text style={[styles.infoText, { color: colors.muted }]}>
-            If you experience severe symptoms or have concerns, please contact
-            your doctor immediately.
-          </Text>
-        </View>
 
-        {/* Emergency Alert */}
-        <View style={[styles.emergencyCard, { backgroundColor: "#dc262610" }]}>
-          <View style={styles.emergencyHeader}>
-            <MaterialCommunityIcons
-              name="alert-circle"
-              size={20}
-              color="#dc2626"
-            />
-            <Text style={[styles.emergencyTitle, { color: "#dc2626" }]}>
-              Emergency Signs
+          <View style={styles.form}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Describe your symptoms
             </Text>
-          </View>
-          <Text style={[styles.emergencyText, { color: "#7f1d1d" }]}>
-            Seek immediate medical attention if you experience:
-          </Text>
-          <View style={styles.emergencyList}>
-            {[
-              "Severe vaginal bleeding",
-              "Abdominal pain or cramping",
-              "Loss of consciousness",
-              "Difficulty breathing",
-              "Chest pain",
-            ].map((item, idx) => (
-              <View key={idx} style={styles.emergencyItem}>
-                <MaterialCommunityIcons
-                  name="circle-small"
-                  size={14}
-                  color="#dc2626"
+            <TextInput
+              style={[
+                styles.textInput,
+                styles.largeInput,
+                {
+                  backgroundColor: colors.card,
+                  color: colors.text,
+                  borderColor: colors.border,
+                },
+              ]}
+              value={symptoms}
+              onChangeText={setSymptoms}
+              placeholder="e.g., headache, nausea, fatigue"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+            />
+
+            <Text style={[styles.label, { color: colors.text }]}>Duration</Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.card,
+                  color: colors.text,
+                  borderColor: colors.border,
+                },
+              ]}
+              value={duration}
+              onChangeText={setDuration}
+              placeholder="e.g., 2 days"
+              placeholderTextColor={colors.textSecondary}
+            />
+
+            <Text style={[styles.label, { color: colors.text }]}>Severity</Text>
+            <View style={styles.severityContainer}>
+              {["Mild", "Moderate", "Severe"].map((level) => (
+                <SeverityOption
+                  key={level}
+                  label={level}
+                  selected={severity === level}
+                  onPress={() => setSeverity(level)}
+                  colors={colors}
                 />
-                <Text style={[styles.emergencyItemText, { color: "#7f1d1d" }]}>
-                  {item}
-                </Text>
-              </View>
-            ))}
+              ))}
+            </View>
+
+            <Text style={[styles.label, { color: colors.text }]}>
+              Upload a photo (optional)
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.imagePicker,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={pickImage}
+            >
+              {image ? (
+                <Image source={{ uri: image }} style={styles.imagePreview} />
+              ) : (
+                <View style={styles.imagePickerContent}>
+                  <MaterialCommunityIcons
+                    name="camera-plus-outline"
+                    size={32}
+                    color={colors.textSecondary}
+                  />
+                  <Text style={{ color: colors.textSecondary }}>
+                    Tap to upload
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                { backgroundColor: colors.primary },
+                submitting && styles.submittingButton,
+              ]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              <Text style={styles.submitButtonText}>
+                {submitting ? "Submitting..." : "Submit for Review"}
+              </Text>
+            </TouchableOpacity>
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+      <BottomNav />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingBottom: 20,
-  },
-  header: {
+  container: { flex: 1 },
+  scrollContent: { paddingBottom: 80 },
+  header: { padding: 20 },
+  title: { fontSize: 24, fontWeight: "bold" },
+  form: { paddingHorizontal: 20 },
+  label: { fontSize: 16, fontWeight: "600", marginBottom: 10 },
+  textInput: {
+    height: 50,
+    borderRadius: 10,
+    paddingHorizontal: 15,
     marginBottom: 20,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    letterSpacing: -0.3,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  card: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 10,
-  },
-  textArea: {
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 120,
   },
-  characterCount: {
-    fontSize: 11,
-    fontWeight: "500",
-    marginTop: 8,
-    textAlign: "right",
+  largeInput: {
+    height: 120,
+    textAlignVertical: "top",
+    paddingTop: 15,
   },
-  severitySection: {
-    marginBottom: 20,
-  },
-  severityGrid: {
+  severityContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
-  },
-  severityButton: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  severityLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  analyzeButton: {
-    backgroundColor: "#2d9d78",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 8,
-    paddingVertical: 14,
     marginBottom: 20,
   },
-  analyzeButtonDisabled: {
-    backgroundColor: "#cbd5e1",
-  },
-  analyzeButtonText: {
-    color: "#ffffff",
-    fontWeight: "700",
-    fontSize: 14,
-  },
-  infoCard: {
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: "#2d9d78",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  infoHeader: {
-    flexDirection: "row",
+  severityOption: {
+    flex: 1,
+    paddingVertical: 15,
+    borderRadius: 10,
     alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
+    marginHorizontal: 5,
+    borderWidth: 1,
   },
-  infoTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  infoText: {
-    fontSize: 12,
-    fontWeight: "400",
-    lineHeight: 16,
-    marginBottom: 8,
-  },
-  emergencyCard: {
-    borderRadius: 12,
-    padding: 14,
-    borderLeftWidth: 4,
-    borderLeftColor: "#dc2626",
-  },
-  emergencyHeader: {
-    flexDirection: "row",
+  severityLabel: { fontSize: 14, fontWeight: "600" },
+  imagePicker: {
+    height: 150,
+    borderRadius: 10,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderStyle: "dashed",
   },
-  emergencyTitle: {
-    fontSize: 13,
-    fontWeight: "700",
+  imagePickerContent: { alignItems: "center" },
+  imagePreview: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 10,
   },
-  emergencyText: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 10,
-  },
-  emergencyList: {
-    gap: 6,
-  },
-  emergencyItem: {
-    flexDirection: "row",
+  submitButton: {
+    height: 50,
+    borderRadius: 15,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 8,
   },
-  emergencyItemText: {
-    fontSize: 12,
-    fontWeight: "500",
+  submittingButton: { opacity: 0.7 },
+  submitButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

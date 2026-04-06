@@ -13,16 +13,17 @@ export default function BottomNav() {
     { path: "/dashboard", icon: "home", label: "Dashboard" },
     { path: "/health-monitoring", icon: "heart-pulse", label: "Health" },
     { path: "/messages", icon: "chat", label: "Chat" },
+    { path: "/emergency", icon: "alert-circle", label: "Alert" },
     { path: "/profile", icon: "account", label: "Profile" },
   ];
 
   const doctorTabs = [
     { path: "/dashboard", icon: "home", label: "Dashboard" },
     { path: "/messages", icon: "chat", label: "Chat" },
-    { path: "/patients", icon: "account-multiple", label: "Patients" },
+    { path: "/profile", icon: "account", label: "Profile" },
   ];
 
-  const tabs = user?.role === "doctor" ? doctorTabs : motherTabs;
+  const tabs = user?.role?.toLowerCase() === "doctor" ? doctorTabs : motherTabs;
 
   return (
     <View style={styles.navContainer}>

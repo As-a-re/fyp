@@ -1,338 +1,216 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import BottomNav from "../components/BottomNav";
 import { Colors } from "../constants/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { messageAPI } from "../services/api";
 
-export default function MessagesScreen() {
-  const { user } = useAuth();
-  const colors = Colors.light;
-  const [loading, setLoading] = useState(true);
-  const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const flatListRef = useRef(null);
+const ConversationItem = ({ item, onPress, colors }) => {
+  // Handle both mock and real data formats
+  const displayName = item.userName || item.user_name || item.name || "Unknown";
+  const lastMsg = item.lastMessage || item.last_message || "No messages yet";
+  const time = item.timestamp || "";
+  const avatar =
+    item.avatar ||
+    "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200";
 
-  useEffect(() => {
-    loadConversations();
-  }, []);
-
-  useEffect(() => {
-    if (selectedConversation) {
-      loadMessages(selectedConversation.user.id);
-    }
-  }, [selectedConversation]);
-
-  useEffect(() => {
-    if (messages.length > 0 && flatListRef.current) {
-      setTimeout(
-        () => flatListRef.current?.scrollToEnd({ animated: true }),
-        100,
-      );
-    }
-  }, [messages]);
-
-  const loadConversations = async () => {
-    try {
-      setLoading(true);
-      const response = await messageAPI.getConversations();
-      setConversations(response.conversations || []);
-    } catch (error) {
-      console.error("Conversations load error:", error);
-      Alert.alert("Error", "Failed to load conversations");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const loadMessages = async (userId) => {
-    try {
-      const response = await messageAPI.getConversation(userId);
-      setMessages(response.messages || []);
-    } catch (error) {
-      console.error("Messages load error:", error);
-      Alert.alert("Error", "Failed to load messages");
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation) return;
-
-    const messageContent = newMessage.trim();
-    setNewMessage("");
-    setSending(true);
-
-    // Add message optimistically
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        sender_id: user.id,
-        message: messageContent,
-        created_at: new Date().toISOString(),
-      },
-    ]);
-
-    try {
-      await messageAPI.sendMessage({
-        recipient_id: selectedConversation.user.id,
-        message: messageContent,
-      });
-      // Reload messages to get server confirmation
-      loadMessages(selectedConversation.user.id);
-    } catch (error) {
-      console.error("Send message error:", error);
-      Alert.alert("Error", "Failed to send message");
-      // Remove optimistic message on error
-      setMessages((prev) => prev.slice(0, -1));
-      setNewMessage(messageContent);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadConversations();
-  };
-
-  const renderMessage = (message) => {
-    const isOwn = message.sender_id === user.id;
-
-    return (
-      <View
-        key={message.id}
-        style={[
-          styles.messageContainer,
-          isOwn ? styles.ownMessage : styles.otherMessage,
-        ]}
-      >
-        <View
-          style={[
-            styles.messageBubble,
-            isOwn
-              ? [styles.ownBubble, { backgroundColor: colors.primary }]
-              : [
-                  styles.otherBubble,
-                  { backgroundColor: colors.card, borderColor: colors.border },
-                ],
-          ]}
-        >
-          <Text
-            style={[
-              styles.messageText,
-              isOwn
-                ? styles.ownMessageText
-                : [styles.otherMessageText, { color: colors.foreground }],
-            ]}
-          >
-            {message.content}
-          </Text>
-          <Text
-            style={[
-              styles.messageTime,
-              isOwn ? styles.ownMessageTime : { color: colors.muted },
-            ]}
-          >
-            {new Date(message.created_at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
-  const renderConversationItem = ({ item }) => (
+  return (
     <TouchableOpacity
-      style={[
-        styles.conversationItem,
-        { backgroundColor: colors.card, borderColor: colors.border },
-        selectedConversation?.id === item.id && {
-          backgroundColor: colors.primary + "10",
-          borderColor: colors.primary,
-        },
-      ]}
-      onPress={() => setSelectedConversation(item)}
+      style={[styles.conversationItem, { borderBottomColor: colors.border }]}
+      onPress={onPress}
     >
-      <View
-        style={[styles.conversationAvatar, { backgroundColor: colors.primary }]}
-      >
-        <MaterialCommunityIcons
-          name={item.user.role === "doctor" ? "stethoscope" : "baby-carriage"}
-          size={24}
-          color="#ffffff"
-        />
-      </View>
-      <View style={styles.conversationContent}>
-        <View style={styles.conversationHeader}>
-          <Text style={[styles.conversationName, { color: colors.foreground }]}>
-            {item.user.name}
-          </Text>
-          <Text style={[styles.conversationTime, { color: colors.muted }]}>
-            {new Date(item.last_message_at).toLocaleDateString()}
-          </Text>
-        </View>
-        <Text
-          numberOfLines={1}
-          style={[styles.conversationPreview, { color: colors.muted }]}
-        >
-          {item.last_message}
+      <Image source={{ uri: avatar }} style={styles.avatar} />
+      <View style={styles.conversationText}>
+        <Text style={[styles.userName, { color: colors.text }]}>
+          {displayName}
+        </Text>
+        <Text style={[styles.lastMessage, { color: colors.textSecondary }]}>
+          {lastMsg}
         </Text>
       </View>
-      {item.unread_count > 0 && (
-        <View style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
-          <Text style={styles.unreadText}>{item.unread_count}</Text>
-        </View>
+      {time && (
+        <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
+          {time}
+        </Text>
       )}
     </TouchableOpacity>
   );
+};
 
-  if (loading) {
-    return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: colors.background }]}
-      >
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+const MessageBubble = ({ message, colors, isSender }) => (
+  <View
+    style={[
+      styles.messageBubble,
+      isSender
+        ? { backgroundColor: colors.primary, alignSelf: "flex-end" }
+        : { backgroundColor: colors.card, alignSelf: "flex-start" },
+    ]}
+  >
+    <Text
+      style={[styles.messageText, { color: isSender ? "#fff" : colors.text }]}
+    >
+      {message.text}
+    </Text>
+  </View>
+);
+
+export default function MessagesScreen() {
+  const { user } = useAuth();
+  const colors = Colors.light;
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadConversations();
+    }, []),
+  );
+
+  const loadConversations = async () => {
+    setLoading(true);
+    try {
+      const response = await messageAPI.getConversations({ limit: 50 });
+      const convList = response.conversations || [];
+      setConversations(convList);
+    } catch (error) {
+      console.error("Error loading conversations:", error);
+      setConversations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectConversation = async (conversation) => {
+    setSelectedConversation(conversation);
+    try {
+      const response = await messageAPI.getConversation(
+        conversation.user_id || conversation.id,
+      );
+      setMessages(response.messages || []);
+    } catch (error) {
+      console.error("Error loading messages:", error);
+      setMessages([]);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (inputText.trim().length > 0) {
+      setSending(true);
+      try {
+        await messageAPI.sendMessage({
+          receiver_id: selectedConversation.user_id || selectedConversation.id,
+          content: inputText,
+        });
+        // Reload messages after sending
+        const response = await messageAPI.getConversation(
+          selectedConversation.user_id || selectedConversation.id,
+        );
+        setMessages(response.messages || []);
+        setInputText("");
+      } catch (error) {
+        console.error("Error sending message:", error);
+      } finally {
+        setSending(false);
+      }
+    }
+  };
 
   if (selectedConversation) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: colors.background }]}
       >
-        <View
-          style={[
-            styles.chatHeader,
-            { backgroundColor: colors.card, borderBottomColor: colors.border },
-          ]}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
         >
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => setSelectedConversation(null)}
+          <View
+            style={[styles.chatHeader, { borderBottomColor: colors.border }]}
           >
-            <MaterialCommunityIcons
-              name="chevron-left"
-              size={28}
-              color={colors.primary}
+            <TouchableOpacity onPress={() => setSelectedConversation(null)}>
+              <MaterialCommunityIcons
+                name="arrow-left"
+                size={24}
+                color={colors.text}
+              />
+            </TouchableOpacity>
+            <Image
+              source={{ uri: selectedConversation.avatar }}
+              style={styles.chatAvatar}
             />
-          </TouchableOpacity>
-          <View style={styles.chatHeaderContent}>
-            <Text style={[styles.chatHeaderName, { color: colors.foreground }]}>
-              {selectedConversation.user.name}
-            </Text>
-            <Text style={[styles.chatHeaderRole, { color: colors.muted }]}>
-              {selectedConversation.user.role === "doctor"
-                ? "Healthcare Provider"
-                : "Patient"}
+            <Text style={[styles.chatUserName, { color: colors.text }]}>
+              {selectedConversation.userName}
             </Text>
           </View>
-          <View style={styles.chatHeaderPlaceholder} />
-        </View>
 
-        <KeyboardAvoidingView
-          style={[styles.chatContainer, { backgroundColor: colors.background }]}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={100}
-        >
-          {messages.length === 0 ? (
-            <View style={styles.emptyStateContainer}>
-              <MaterialCommunityIcons
-                name="message-outline"
-                size={48}
-                color={colors.muted}
-                style={{ marginBottom: 12 }}
+          <FlatList
+            data={messages}
+            renderItem={({ item }) => (
+              <MessageBubble
+                message={item}
+                colors={colors}
+                isSender={item.sender === "user"}
               />
-              <Text
-                style={[styles.emptyStateTitle, { color: colors.foreground }]}
-              >
-                No messages yet
-              </Text>
-              <Text style={[styles.emptyStateText, { color: colors.muted }]}>
-                Start the conversation by sending a message
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              ref={flatListRef}
-              data={messages}
-              renderItem={({ item }) => renderMessage(item)}
-              keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={styles.messagesContent}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  tintColor={colors.primary}
-                />
-              }
-              onContentSizeChange={() =>
-                flatListRef.current?.scrollToEnd({ animated: true })
-              }
-            />
-          )}
+            )}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.messagesContainer}
+            inverted
+          />
 
           <View
-            style={[
-              styles.inputContainer,
-              { backgroundColor: colors.card, borderTopColor: colors.border },
-            ]}
+            style={[styles.inputContainer, { backgroundColor: colors.card }]}
           >
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.background,
-                    color: colors.foreground,
-                  },
-                ]}
-                placeholder="Type a message..."
-                placeholderTextColor={colors.muted}
-                value={newMessage}
-                onChangeText={setNewMessage}
-                editable={!sending}
-                multiline
-                maxLength={1000}
-              />
-              <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  { backgroundColor: colors.primary },
-                  (!newMessage.trim() || sending) && styles.sendButtonDisabled,
-                ]}
-                onPress={sendMessage}
-                disabled={!newMessage.trim() || sending}
-              >
-                <MaterialCommunityIcons name="send" size={20} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
+            <TextInput
+              style={[styles.textInput, { color: colors.text }]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Type a message..."
+              placeholderTextColor={colors.textSecondary}
+            />
+            <TouchableOpacity
+              onPress={handleSendMessage}
+              disabled={sending}
+              style={[
+                styles.sendButton,
+                { backgroundColor: colors.primary, opacity: sending ? 0.6 : 1 },
+              ]}
+            >
+              <MaterialCommunityIcons name="send" size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -341,81 +219,88 @@ export default function MessagesScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <View
-        style={[
-          styles.header,
-          { backgroundColor: colors.card, borderBottomColor: colors.border },
-        ]}
-      >
-        <View style={styles.headerLeft}>
-          <MaterialCommunityIcons
-            name="chat-multiple"
-            size={28}
-            color={colors.primary}
-          />
-          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-            Messages
-          </Text>
-        </View>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: colors.text }]}>Messages</Text>
       </View>
-
-      {conversations.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons
-            name="message-outline"
-            size={48}
-            color={colors.muted}
-            style={{ marginBottom: 12 }}
-          />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-            No conversations yet
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.muted }]}>
-            Messages from your healthcare provider will appear here
-          </Text>
-        </View>
-      ) : (
+      {conversations.length > 0 ? (
         <FlatList
           data={conversations}
-          renderItem={renderConversationItem}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.conversationsList}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
+          renderItem={({ item }) => (
+            <ConversationItem
+              item={item}
+              onPress={() => handleSelectConversation(item)}
+              colors={colors}
             />
-          }
+          )}
+          keyExtractor={(item) => item.id?.toString()}
         />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+            No conversations yet
+          </Text>
+        </View>
       )}
+      <BottomNav />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
+  container: { flex: 1 },
+  header: { padding: 20 },
+  title: { fontSize: 24, fontWeight: "bold" },
+  conversationItem: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
-    paddingTop: 12,
+    padding: 15,
     borderBottomWidth: 1,
   },
-  headerLeft: {
+  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15 },
+  conversationText: { flex: 1 },
+  userName: { fontSize: 16, fontWeight: "bold" },
+  lastMessage: { fontSize: 14, marginTop: 2 },
+  timestamp: { fontSize: 12 },
+  chatHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    padding: 15,
+    borderBottomWidth: 1,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: -0.3,
+  chatAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginHorizontal: 10,
   },
-  centerContainer: {
+  chatUserName: { fontSize: 18, fontWeight: "bold" },
+  messagesContainer: { padding: 10, flexDirection: "column-reverse" },
+  messageBubble: {
+    padding: 12,
+    borderRadius: 20,
+    marginVertical: 5,
+    maxWidth: "80%",
+  },
+  messageText: { fontSize: 16 },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    borderTopWidth: 1,
+  },
+  textInput: {
+    flex: 1,
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    backgroundColor: "#f0f0f0",
+  },
+  sendButton: {
+    marginLeft: 10,
+    padding: 10,
+    borderRadius: 25,
+  },
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -424,201 +309,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 8,
+    padding: 20,
   },
   emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  conversationsList: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  conversationItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginVertical: 6,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  conversationAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  conversationContent: {
-    flex: 1,
-  },
-  conversationHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  conversationName: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  conversationTime: {
-    fontSize: 12,
-  },
-  conversationPreview: {
-    fontSize: 13,
-    fontWeight: "400",
-  },
-  unreadBadge: {
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  unreadText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  chatHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    paddingTop: 12,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  chatHeaderContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  chatHeaderName: {
     fontSize: 16,
-    fontWeight: "700",
-  },
-  chatHeaderRole: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  chatHeaderPlaceholder: {
-    width: 40,
-  },
-  chatContainer: {
-    flex: 1,
-  },
-  messagesContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-  },
-  messageContainer: {
-    marginBottom: 12,
-    flexDirection: "row",
-  },
-  ownMessage: {
-    justifyContent: "flex-end",
-  },
-  otherMessage: {
-    justifyContent: "flex-start",
-  },
-  messageBubble: {
-    maxWidth: "85%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-  },
-  ownBubble: {
-    // backgroundColor set dynamically
-  },
-  otherBubble: {
-    borderWidth: 1,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 21,
-    marginBottom: 4,
-  },
-  ownMessageText: {
-    color: "#ffffff",
-    fontWeight: "500",
-  },
-  otherMessageText: {
-    fontWeight: "500",
-  },
-  messageTime: {
-    fontSize: 11,
-    opacity: 0.6,
-    marginTop: 4,
-  },
-  ownMessageTime: {
-    color: "#ffffff",
-    fontSize: 11,
-    opacity: 0.6,
-    marginTop: 4,
-  },
-  emptyStateContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    fontSize: 14,
     textAlign: "center",
-  },
-  inputContainer: {
-    borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 10,
-  },
-  textInput: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    maxHeight: 100,
-  },
-  sendButton: {
-    borderRadius: 10,
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#2d9d78",
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  sendButtonDisabled: {
-    backgroundColor: "#cbd5e1",
-    shadowOpacity: 0,
   },
 });

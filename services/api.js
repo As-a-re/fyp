@@ -157,6 +157,7 @@ export const authAPI = {
 // Health Monitoring API
 export const healthAPI = {
   recordHealth: (healthData) => apiClient.post("/health/record", healthData),
+  addHealthRecord: (healthData) => apiClient.post("/health/record", healthData),
   getHealthHistory: (params = {}) => apiClient.get("/health/history", params),
   getLatestHealth: () => apiClient.get("/health/latest"),
 };
