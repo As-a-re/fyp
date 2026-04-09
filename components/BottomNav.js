@@ -12,9 +12,9 @@ export default function BottomNav() {
   const motherTabs = [
     { path: "/dashboard", icon: "home", label: "Dashboard" },
     { path: "/health-monitoring", icon: "heart-pulse", label: "Health" },
+    { path: "/browse-doctors", icon: "hospital-box", label: "Doctors" },
     { path: "/messages", icon: "chat", label: "Chat" },
     { path: "/emergency", icon: "alert-circle", label: "Alert" },
-    { path: "/profile", icon: "account", label: "Profile" },
   ];
 
   const doctorTabs = [

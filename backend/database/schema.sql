@@ -106,6 +106,21 @@ CREATE TABLE IF NOT EXISTS emergency_alerts (
     resolved_at TIMESTAMP WITH TIME ZONE
 );
 
+-- Video/Voice calls table
+CREATE TABLE IF NOT EXISTS calls (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    caller_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipient_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    call_type VARCHAR(20) NOT NULL CHECK (call_type IN ('audio', 'video')),
+    channel_name VARCHAR(255) NOT NULL,
+    status VARCHAR(20) DEFAULT 'initiated' CHECK (status IN ('initiated', 'accepted', 'rejected', 'ended')),
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    ended_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CHECK (caller_id != recipient_id) -- Prevent calling yourself
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
@@ -124,6 +139,10 @@ CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_read_at ON messages(read_at);
 CREATE INDEX IF NOT EXISTS idx_emergency_alerts_user_id ON emergency_alerts(user_id);
 CREATE INDEX IF NOT EXISTS idx_emergency_alerts_status ON emergency_alerts(status);
+CREATE INDEX IF NOT EXISTS idx_calls_caller_id ON calls(caller_id);
+CREATE INDEX IF NOT EXISTS idx_calls_recipient_id ON calls(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status);
+CREATE INDEX IF NOT EXISTS idx_calls_started_at ON calls(started_at);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -134,6 +153,7 @@ ALTER TABLE ai_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE emergency_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calls ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
@@ -228,6 +248,22 @@ CREATE POLICY "Users can view own alerts" ON emergency_alerts
 
 CREATE POLICY "System can manage alerts" ON emergency_alerts
     FOR ALL USING (true);
+
+-- Calls (Video/Voice)
+CREATE POLICY "Users can view their own calls" ON calls
+    FOR SELECT USING (
+        auth.uid()::text = caller_id::text OR 
+        auth.uid()::text = recipient_id::text
+    );
+
+CREATE POLICY "Users can initiate calls" ON calls
+    FOR INSERT WITH CHECK (auth.uid()::text = caller_id::text);
+
+CREATE POLICY "Users can update their calls" ON calls
+    FOR UPDATE USING (
+        auth.uid()::text = caller_id::text OR 
+        auth.uid()::text = recipient_id::text
+    );
 
 CREATE POLICY "Doctors can view all alerts" ON emergency_alerts
     FOR SELECT USING (

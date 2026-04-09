@@ -234,6 +234,19 @@ export const doctorAPI = {
     apiClient.get(`/doctor/patients/${patientId}/history`, params),
   addNote: (patientId, noteData) =>
     apiClient.post(`/doctor/patients/${patientId}/notes`, noteData),
+  browseDoctors: (params = {}) => apiClient.get("/doctor/browse", params),
+};
+
+// Video/Voice Call API
+export const callAPI = {
+  initiateCall: (callData) => apiClient.post("/calls/initiate", callData),
+  getCallToken: (channelName, callType = "audio") =>
+    apiClient.post("/calls/get-token", { channelName, callType }),
+  endCall: (callId) => apiClient.post(`/calls/${callId}/end`, {}),
+  getCallHistory: (params = {}) => apiClient.get("/calls/history", params),
+  rejectCall: (callId) => apiClient.post(`/calls/${callId}/reject`, {}),
+  acceptCall: (callId) => apiClient.post(`/calls/${callId}/accept`, {}),
+  getActiveCall: () => apiClient.get("/calls/active"),
 };
 
 // Utility function for error handling

@@ -9,19 +9,29 @@ function RootLayoutContent() {
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
 
-  // Hide bottom nav on login, register, and index pages
+  // Hide bottom nav on login, register, index, and chat pages
   const hideBottomNav =
     pathname === "/login" ||
     pathname === "/register" ||
     pathname === "/index" ||
     pathname === "/" ||
+    pathname === "/chat-doctor" ||
+    !isAuthenticated;
+
+  // Hide top bar on login, register, index, chat, and unauthenticated pages
+  const hideTopBar =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/index" ||
+    pathname === "/" ||
+    pathname === "/chat-doctor" ||
     !isAuthenticated;
 
   return (
     <>
       <StatusBar style="auto" />
       <View style={{ flex: 1 }}>
-        <TopBar />
+        {!hideTopBar && <TopBar />}
         <Stack>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="login" options={{ headerShown: false }} />
@@ -76,6 +86,11 @@ function RootLayoutContent() {
             options={{ headerShown: false }}
           />
           <Stack.Screen name="test-results" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="browse-doctors"
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen name="chat-doctor" options={{ headerShown: false }} />
         </Stack>
         {!hideBottomNav && <BottomNav />}
       </View>

@@ -5,6 +5,27 @@ const { authenticateToken } = require("../middleware/auth");
 
 const router = express.Router();
 
+// Get all doctors (for mothers to browse)
+router.get("/browse", authenticateToken, async (req, res) => {
+  try {
+    // Get all doctors registered in the system
+    const { data: doctors, error } = await supabase
+      .from("users")
+      .select("id, name, email, phone, created_at")
+      .eq("role", "Doctor")
+      .order("name", { ascending: true });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ doctors: doctors || [] });
+  } catch (error) {
+    console.error("Get doctors error:", error);
+    res.status(500).json({ error: "Failed to fetch doctors" });
+  }
+});
+
 // Get doctor's patients
 router.get("/patients", authenticateToken, async (req, res) => {
   try {

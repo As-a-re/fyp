@@ -12,6 +12,7 @@ const messageRoutes = require("./routes/messages");
 const appointmentRoutes = require("./routes/appointments");
 const medicalRoutes = require("./routes/medical");
 const doctorRoutes = require("./routes/doctor");
+const callRoutes = require("./routes/calls");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -54,6 +55,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/medical", medicalRoutes);
 app.use("/api/doctor", doctorRoutes);
+app.use("/api/calls", callRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

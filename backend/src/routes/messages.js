@@ -135,7 +135,7 @@ router.get("/conversation/:userId", authenticateToken, async (req, res) => {
       `,
       )
       .or(
-        `(sender_id.eq.${req.user.id},recipient_id.eq.${userId}),(sender_id.eq.${userId},recipient_id.eq.${req.user.id})`,
+        `and(sender_id.eq.${req.user.id},recipient_id.eq.${userId}),and(sender_id.eq.${userId},recipient_id.eq.${req.user.id})`,
       )
       .order("created_at", { ascending: false })
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);

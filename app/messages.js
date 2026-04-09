@@ -22,9 +22,27 @@ import { messageAPI } from "../services/api";
 
 const ConversationItem = ({ item, onPress, colors }) => {
   // Handle both mock and real data formats
-  const displayName = item.userName || item.user_name || item.name || "Unknown";
-  const lastMsg = item.lastMessage || item.last_message || "No messages yet";
-  const time = item.timestamp || "";
+  // Backend returns: { user: {...}, lastMessage: {...}, unreadCount: 0 }
+  const user = item.user || item;
+  const displayName =
+    user?.name || user?.userName || user?.user_name || "Unknown";
+
+  // Extract message text from lastMessage object
+  const lastMessageObj = item.lastMessage || {};
+  const lastMsg =
+    typeof lastMessageObj === "string"
+      ? lastMessageObj
+      : lastMessageObj.message || "No messages yet";
+
+  // Format timestamp
+  const messageTime = lastMessageObj.created_at || "";
+  const time = messageTime
+    ? new Date(messageTime).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
   const avatar =
     item.avatar ||
     "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200";
@@ -64,7 +82,7 @@ const MessageBubble = ({ message, colors, isSender }) => (
     <Text
       style={[styles.messageText, { color: isSender ? "#fff" : colors.text }]}
     >
-      {message.text}
+      {message.message || message.text || ""}
     </Text>
   </View>
 );
@@ -102,9 +120,20 @@ export default function MessagesScreen() {
   const handleSelectConversation = async (conversation) => {
     setSelectedConversation(conversation);
     try {
-      const response = await messageAPI.getConversation(
-        conversation.user_id || conversation.id,
-      );
+      // Extract the other user's ID from the backend structure
+      const userId =
+        conversation.user?.id || conversation.user_id || conversation.id;
+
+      if (!userId) {
+        console.error(
+          "Unable to extract user ID from conversation:",
+          conversation,
+        );
+        setMessages([]);
+        return;
+      }
+
+      const response = await messageAPI.getConversation(userId);
       setMessages(response.messages || []);
     } catch (error) {
       console.error("Error loading messages:", error);
@@ -116,14 +145,17 @@ export default function MessagesScreen() {
     if (inputText.trim().length > 0) {
       setSending(true);
       try {
+        const userId =
+          selectedConversation.user?.id ||
+          selectedConversation.user_id ||
+          selectedConversation.id;
         await messageAPI.sendMessage({
-          receiver_id: selectedConversation.user_id || selectedConversation.id,
-          content: inputText,
+          recipient_id: userId,
+          message: inputText,
+          message_type: "text",
         });
         // Reload messages after sending
-        const response = await messageAPI.getConversation(
-          selectedConversation.user_id || selectedConversation.id,
-        );
+        const response = await messageAPI.getConversation(userId);
         setMessages(response.messages || []);
         setInputText("");
       } catch (error) {
@@ -155,11 +187,17 @@ export default function MessagesScreen() {
               />
             </TouchableOpacity>
             <Image
-              source={{ uri: selectedConversation.avatar }}
+              source={{
+                uri:
+                  selectedConversation.avatar ||
+                  "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=200",
+              }}
               style={styles.chatAvatar}
             />
             <Text style={[styles.chatUserName, { color: colors.text }]}>
-              {selectedConversation.userName}
+              {selectedConversation.user?.name ||
+                selectedConversation.userName ||
+                "Unknown"}
             </Text>
           </View>
 
@@ -169,10 +207,10 @@ export default function MessagesScreen() {
               <MessageBubble
                 message={item}
                 colors={colors}
-                isSender={item.sender === "user"}
+                isSender={item.sender_id === user?.id}
               />
             )}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => item.id || `message-${index}`}
             contentContainerStyle={styles.messagesContainer}
             inverted
           />
@@ -232,7 +270,11 @@ export default function MessagesScreen() {
               colors={colors}
             />
           )}
-          keyExtractor={(item) => item.id?.toString()}
+          keyExtractor={(item, index) => {
+            // Try multiple ways to get a unique key
+            const key = item.user?.id || item.user_id || item.id;
+            return key ? key.toString() : `conversation-${index}`;
+          }}
         />
       ) : (
         <View style={styles.emptyContainer}>
