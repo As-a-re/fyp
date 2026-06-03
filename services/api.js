@@ -72,9 +72,19 @@ class ApiClient {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Token expired, clear it and redirect to login
-          this.setToken(null);
-          throw new Error("Session expired. Please login again.");
+          // Only clear token for authenticated endpoints, not login/register
+          if (
+            token &&
+            !endpoint.includes("/auth/login") &&
+            !endpoint.includes("/auth/register")
+          ) {
+            this.setToken(null);
+            throw new Error("Session expired. Please login again.");
+          }
+          // For login/register, return the error message from the API
+          throw new Error(
+            data.error || data.message || "Authentication failed",
+          );
         }
         console.error(`API Error (${response.status}):`, data);
         throw new Error(data.error || data.message || "Request failed");

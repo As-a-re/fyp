@@ -10,7 +10,7 @@ import { callAPI } from "../services/api";
 import { callService } from "../services/callService";
 
 const AGORA_APP_ID =
-  process.env.EXPO_PUBLIC_AGORA_APP_ID || "YOUR_AGORA_APP_ID";
+  process.env.EXPO_PUBLIC_AGORA_APP_ID || "d128c1eb210449f0a5a3556e19bd35de";
 
 export default function VideoCallScreen() {
   const router = useRouter();

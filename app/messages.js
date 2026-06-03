@@ -129,6 +129,7 @@ export default function MessagesScreen() {
           "Unable to extract user ID from conversation:",
           conversation,
         );
+        Alert.alert("Error", "Failed to load conversation. Invalid user data.");
         setMessages([]);
         return;
       }
@@ -137,6 +138,7 @@ export default function MessagesScreen() {
       setMessages(response.messages || []);
     } catch (error) {
       console.error("Error loading messages:", error);
+      Alert.alert("Error", "Failed to load conversation messages.");
       setMessages([]);
     }
   };
@@ -149,6 +151,13 @@ export default function MessagesScreen() {
           selectedConversation.user?.id ||
           selectedConversation.user_id ||
           selectedConversation.id;
+
+        if (!userId) {
+          Alert.alert("Error", "Invalid conversation. Please select another.");
+          setSending(false);
+          return;
+        }
+
         await messageAPI.sendMessage({
           recipient_id: userId,
           message: inputText,
@@ -160,6 +169,7 @@ export default function MessagesScreen() {
         setInputText("");
       } catch (error) {
         console.error("Error sending message:", error);
+        Alert.alert("Error", "Failed to send message. Please try again.");
       } finally {
         setSending(false);
       }

@@ -46,11 +46,9 @@ router.post(
         recipient.role !== "Doctor" &&
         recipient.role !== "Administrator"
       ) {
-        return res
-          .status(403)
-          .json({
-            error: "Mothers can only message doctors or administrators",
-          });
+        return res.status(403).json({
+          error: "Mothers can only message doctors or administrators",
+        });
       }
 
       if (
@@ -58,11 +56,9 @@ router.post(
         recipient.role !== "Mother" &&
         recipient.role !== "Administrator"
       ) {
-        return res
-          .status(403)
-          .json({
-            error: "Doctors can only message mothers or administrators",
-          });
+        return res.status(403).json({
+          error: "Doctors can only message mothers or administrators",
+        });
       }
 
       // Create message
@@ -141,12 +137,10 @@ router.get("/conversation/:userId", authenticateToken, async (req, res) => {
       .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
 
     if (error) {
-      return res
-        .status(500)
-        .json({
-          error: "Failed to fetch conversation",
-          details: error.message,
-        });
+      return res.status(500).json({
+        error: "Failed to fetch conversation",
+        details: error.message,
+      });
     }
 
     // Mark messages as read if current user is recipient
@@ -193,12 +187,10 @@ router.get("/conversations", authenticateToken, async (req, res) => {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return res
-        .status(500)
-        .json({
-          error: "Failed to fetch conversations",
-          details: error.message,
-        });
+      return res.status(500).json({
+        error: "Failed to fetch conversations",
+        details: error.message,
+      });
     }
 
     // Process conversations to get unique users and last message
@@ -207,11 +199,22 @@ router.get("/conversations", authenticateToken, async (req, res) => {
     conversations.forEach((msg) => {
       const otherUser =
         msg.sender_id === req.user.id ? msg.recipient : msg.sender;
+
+      // Skip if other user data is missing
+      if (!otherUser || !otherUser.id) {
+        console.warn(
+          "Skipping conversation with missing user data:",
+          msg.sender_id === req.user.id ? msg.recipient_id : msg.sender_id,
+        );
+        return;
+      }
+
       const otherUserId = otherUser.id;
 
       if (!userMap.has(otherUserId)) {
         userMap.set(otherUserId, {
           user: otherUser,
+          user_id: otherUser.id, // Add alias for compatibility
           lastMessage: {
             id: msg.id,
             message: msg.message,
@@ -252,12 +255,10 @@ router.get("/unread-count", authenticateToken, async (req, res) => {
       .is("read_at", null);
 
     if (error) {
-      return res
-        .status(500)
-        .json({
-          error: "Failed to fetch unread count",
-          details: error.message,
-        });
+      return res.status(500).json({
+        error: "Failed to fetch unread count",
+        details: error.message,
+      });
     }
 
     res.json({

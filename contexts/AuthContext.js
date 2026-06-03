@@ -27,13 +27,19 @@ export const AuthProvider = ({ children }) => {
       const token = await AsyncStorage.getItem("authToken");
       if (token) {
         // Validate token by getting user profile
-        const response = await authAPI.getProfile();
-        if (response.user) {
-          setUser(response.user);
+        try {
+          const response = await authAPI.getProfile();
+          if (response.user) {
+            setUser(response.user);
+            setIsAuthenticated(true);
+          } else {
+            // Token invalid, clear it
+            await AsyncStorage.removeItem("authToken");
+          }
+        } catch (apiError) {
+          // API is unavailable, but token exists - keep user authenticated for now
+          console.warn("Could not validate token with API:", apiError.message);
           setIsAuthenticated(true);
-        } else {
-          // Token invalid, clear it
-          await AsyncStorage.removeItem("authToken");
         }
       }
     } catch (error) {
@@ -44,10 +50,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email, password) => {
+  const login = async (email, password, role = "mother") => {
     try {
       setLoading(true);
-      const response = await authAPI.login({ email, password });
+      const response = await authAPI.login({ email, password, role });
 
       if (response.token && response.user) {
         await AsyncStorage.setItem("authToken", response.token);
